@@ -61,6 +61,8 @@ jobs:
           path: |
             release/*.exe
             release/*.dmg
+            release/*.blockmap
+            release/latest*.yml
           if-no-files-found: error
 
   release:
