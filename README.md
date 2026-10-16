@@ -5,7 +5,7 @@
 <h1 align="center">Nothing X — unofficial desktop app</h1>
 
 <p align="center">
-  A community-made Windows app for Nothing and CMF earbuds.<br>
+  A community-made Windows and Mac app for Nothing and CMF earbuds.<br>
   <b>Not made by, affiliated with or endorsed by Nothing Technology.</b>
 </p>
 
@@ -23,13 +23,23 @@
 - **Live status** — shows when the earbuds disconnect, tap to reconnect
 - **Preview mode** — try the app without earbuds
 
-## Install (Windows)
+## Install
 
-1. Download `Nothing-X-Setup-x.y.z.exe` from the [Releases](../../releases) page.
-2. Run it. Windows may show *"Windows protected your PC"* because the app isn't code-signed — click **More info → Run anyway**.
-3. Pair your earbuds in Windows Bluetooth settings, open **Nothing X** and click **Initialize Link**.
+Get the latest version from the **[Releases](../../releases/latest)** page.
 
-Running a newer installer updates the app in place and keeps your settings.
+**Windows**
+
+1. Download `Nothing-X-Setup-x.y.z.exe` and run it.
+2. If Windows shows *"Windows protected your PC"* (the app isn't code-signed), click **More info → Run anyway**.
+3. Running a newer installer updates the app in place and keeps your settings.
+
+**Mac**
+
+1. Download `…-mac-arm64.dmg` for Apple Silicon (M1 and newer) or `…-mac-x64.dmg` for Intel Macs.
+2. Open it and drag **Nothing X** into **Applications**.
+3. The first time, macOS says it can't verify the app (it isn't notarized by Apple): click **Done**, then go to **System Settings → Privacy & Security** and click **Open Anyway**. Allow Bluetooth when asked.
+
+**Then:** pair your earbuds in your computer's Bluetooth settings, take them out of the case, open **Nothing X** and click **Initialize Link**.
 
 ## Compatibility
 
@@ -45,7 +55,12 @@ Needs [Node.js](https://nodejs.org/) 20 or newer.
 npm install          # Electron + build tools (a few hundred MB)
 npm start            # build the interface and open the app
 npm run dist:win     # build the Windows installer into release/
+npm run dist:mac     # build the Mac apps (on a Mac)
 ```
+
+New releases are built automatically by GitHub Actions (`.github/workflows/build.yml`)
+whenever `package.json` changes on `main`, e.g. after bumping `"version"`. You can also start a
+build by hand: **Actions → Build Nothing X → Run workflow**.
 
 To work on just the interface in a browser: run `start_app.bat` (or `npm --prefix web run dev`)
 and open `http://localhost:5173` in Chrome or Edge. Add `?demo` to the address to preview without earbuds.
@@ -54,7 +69,8 @@ and open `http://localhost:5173` in Chrome or Edge. Add `?demo` to the address t
 | --- | --- |
 | `web/` | The interface (Vite + plain JavaScript): `src/main.js`, `src/style.css`, `src/connection.js` (earbud protocol), `src/fizz.js` (battery animation) |
 | `main.js`, `electron/` | The desktop wrapper (Electron) and the earbud picker window |
-| `resources/` | App icon |
+| `resources/` | App icons (Windows and Mac) |
+| `.github/workflows/` | Automatic Windows + Mac builds and releases |
 
 ## Credits
 
