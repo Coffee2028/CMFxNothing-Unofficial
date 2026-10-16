@@ -385,6 +385,7 @@ const app = {
     // Quick tiles, fit test, status pill, nav indicator
     this.setupTiles();
     this.setupFitTest();
+    this.setupUpdates();
     this.updateTiles();
     this.setLinkState('offline');
     this.setConnectUI('idle');
@@ -543,6 +544,71 @@ const app = {
     const customEQ = this.settings.eqMode === 'advanced';
     set('tile-eq', customEQ ? 'CUSTOM' : (EQ[this.settings.eqId] || 'BALANCED'), customEQ || this.settings.eqId !== 1);
     set('tile-game', this.settings.lowLatency ? 'ON' : 'OFF', !!this.settings.lowLatency);
+  },
+
+  // --- APP UPDATES (desktop app only; window.desktop comes from electron/main-preload.js) ---
+  setupUpdates() {
+    const desktop = window.desktop;
+    if (!desktop) return; // running in a normal browser: nothing to update
+    document.getElementById('update-row').hidden = false;
+    document.getElementById('update-btn').addEventListener('click', () => this.updateAction());
+    document.getElementById('update-banner-action').addEventListener('click', () => this.updateAction());
+    document.getElementById('update-banner-close').addEventListener('click', () => {
+      this.updateDismissed = this.update?.version;
+      document.getElementById('update-banner').hidden = true;
+    });
+    desktop.onUpdate((status) => this.renderUpdate(status));
+    desktop.getUpdate().then((status) => this.renderUpdate(status));
+  },
+
+  updateAction() {
+    const s = this.update?.state;
+    if (s === 'ready') window.desktop.installUpdate();
+    else if (s === 'available') window.desktop.openDownload();
+    else { this.updateCheckedByHand = true; window.desktop.checkForUpdates(); }
+  },
+
+  // state: idle | checking | latest | downloading | ready | available | error | dev
+  renderUpdate(s) {
+    if (!s) return;
+    const previous = this.update?.state;
+    this.update = s;
+    document.getElementById('app-version').textContent = s.current || '--';
+
+    const status = {
+      checking: 'CHECKING…',
+      latest: 'UP TO DATE',
+      downloading: `DOWNLOADING ${s.version || ''} · ${s.percent || 0}%`,
+      ready: `${s.version} READY`,
+      available: `${s.version} AVAILABLE`,
+      error: 'COULDN’T CHECK',
+      dev: 'DEV BUILD'
+    }[s.state] || '';
+    const text = document.getElementById('update-text');
+    text.textContent = status ? `· ${status}` : '';
+    text.dataset.state = s.state;
+
+    const btn = document.getElementById('update-btn');
+    btn.textContent = s.state === 'ready' ? 'RESTART' : s.state === 'available' ? 'DOWNLOAD' : 'CHECK';
+    btn.disabled = s.state === 'checking' || s.state === 'downloading' || s.state === 'dev';
+    btn.classList.toggle('active', s.state === 'ready' || s.state === 'available');
+
+    // Banner when something is ready / available (once per version, unless dismissed)
+    const banner = document.getElementById('update-banner');
+    const show = (s.state === 'ready' || s.state === 'available') && this.updateDismissed !== s.version;
+    if (show) {
+      document.getElementById('update-banner-text').textContent =
+        s.state === 'ready' ? `CMFxNothing ${s.version} is ready` : `CMFxNothing ${s.version} is available`;
+      document.getElementById('update-banner-action').textContent = s.state === 'ready' ? 'RESTART' : 'DOWNLOAD';
+    }
+    banner.hidden = !show;
+
+    // After a hand-started check finishes, say so if there's nothing new
+    if (s.state !== 'checking') {
+      if (s.state === 'latest' && previous === 'checking' && this.updateCheckedByHand) this.toast('You’re on the latest version');
+      if (s.state === 'error' && this.updateCheckedByHand) this.toast('Couldn’t check for updates. Are you online?');
+      this.updateCheckedByHand = false;
+    }
   },
 
   // --- EAR TIP FIT TEST ---

@@ -1,22 +1,22 @@
 {
   "name": "nothing-ear-app",
-  "productName": "Nothing X",
+  "productName": "CMFxNothing (Unofficial)",
   "version": "1.0.2",
-  "description": "Unofficial desktop controller for Nothing and CMF earbuds",
+  "description": "Unofficial desktop app for Nothing and CMF earbuds",
   "main": "main.js",
   "author": "Coffee",
-  "license": "GPL-3.0-only",
+  "license": "AGPL-3.0-only",
   "private": true,
   "scripts": {
     "build:web": "npm --prefix web install && npm --prefix web run build",
     "start": "npm run build:web && electron .",
-    "dist:win": "npm run build:web && electron-builder --win",
-    "dist:mac": "npm run build:web && electron-builder --mac"
+    "dist:win": "npm run build:web && electron-builder --win --publish never",
+    "dist:mac": "npm run build:web && electron-builder --mac --publish never"
   },
   "build": {
     "appId": "com.coffee.nothingx",
-    "productName": "Nothing X",
-    "copyright": "GPL-3.0. Unofficial app, not affiliated with Nothing Technology.",
+    "productName": "CMFxNothing (Unofficial)",
+    "copyright": "AGPL-3.0. Unofficial app, not affiliated with Nothing Technology.",
     "directories": {
       "buildResources": "resources",
       "output": "release"
@@ -46,8 +46,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Nothing X",
-      "artifactName": "Nothing-X-Setup-${version}.${ext}"
+      "shortcutName": "CMFxNothing (Unofficial)",
+      "artifactName": "CMFxNothing-Setup-${version}.${ext}"
     },
     "mac": {
       "target": [
@@ -65,19 +65,28 @@
       "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "notarize": false,
-      "artifactName": "Nothing-X-${version}-mac-${arch}.${ext}",
+      "artifactName": "CMFxNothing-${version}-mac-${arch}.${ext}",
       "extendInfo": {
-        "NSBluetoothAlwaysUsageDescription": "Nothing X uses Bluetooth to connect to your earbuds.",
-        "NSBluetoothPeripheralUsageDescription": "Nothing X uses Bluetooth to connect to your earbuds."
+        "NSBluetoothAlwaysUsageDescription": "CMFxNothing uses Bluetooth to connect to your earbuds.",
+        "NSBluetoothPeripheralUsageDescription": "CMFxNothing uses Bluetooth to connect to your earbuds."
       }
     },
-    "publish": null,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Coffee2028",
+        "repo": "CMFxNothing-Unofficial"
+      }
+    ],
     "dmg": {
-      "artifactName": "Nothing-X-${version}-mac-${arch}.${ext}"
+      "artifactName": "CMFxNothing-${version}-mac-${arch}.${ext}"
     }
   },
   "devDependencies": {
     "electron": "44.8.0",
     "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
   }
 }

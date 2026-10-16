@@ -1280,8 +1280,9 @@ body.theme-gold #connectBtn:hover { box-shadow: 0 0 20px rgba(255,215,0,0.6); }
 .logo {
   font-family: var(--font-dot);
   font-weight: 600;
-  font-size: 22px;
-  letter-spacing: 3px;
+  font-size: 19px;
+  letter-spacing: 2px;
+  white-space: nowrap;
   text-shadow: none;
 }
 
@@ -1773,6 +1774,71 @@ body.theme-gold #connectBtn:hover { box-shadow: 0 0 20px rgba(255,215,0,0.6); }
 
 @media (prefers-reduced-motion: reduce) {
   .fit-bud[data-state="testing"] .fit-ring::after { animation: none; opacity: 0.6; }
+}
+
+/* ===================== UPDATES ===================== */
+.update-version { color: #fff; margin-left: 6px; }
+.update-text { color: #666; margin-left: 6px; }
+.update-text[data-state="ready"],
+.update-text[data-state="available"] { color: var(--accent); }
+.update-text[data-state="downloading"] { color: #bbb; }
+.setting-item .help-btn { flex: 0 0 auto; min-width: 104px; padding: 9px 18px; text-decoration: none; }
+.setting-item .update-btn { flex: 0 0 auto; min-width: 104px; padding: 9px 18px; }
+.update-btn:disabled { opacity: 0.45; cursor: default; }
+
+.update-banner {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
+  border-radius: 40px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, #333);
+  background: rgba(12, 12, 12, 0.92);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px color-mix(in srgb, var(--accent) 18%, transparent);
+  font-family: var(--font-tech);
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #ddd;
+  animation: banner-in 0.5s cubic-bezier(.2, .8, .2, 1);
+}
+
+.update-banner[hidden] { display: none; }
+
+.ub-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+
+.update-banner .ub-action { flex: 0 0 auto; padding: 8px 18px; background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.ub-close {
+  display: flex;
+  border: none;
+  background: transparent;
+  color: #777;
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.ub-close:hover { color: #fff; }
+
+@keyframes banner-in {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 520px) {
+  .update-banner { left: 12px; right: 12px; bottom: 12px; }
+  .ub-text { flex: 1; }
 }
 
 /* ===================== RESPONSIVE =====================

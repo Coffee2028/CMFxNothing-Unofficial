@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nothing X</title>
+    <title>CMFxNothing (Unofficial)</title>
     <link rel="stylesheet" href="/src/style.css">
 </head>
 
@@ -30,7 +30,7 @@
     <!-- Intro Overlay -->
     <div id="overlay">
         <div class="overlay-grid" aria-hidden="true"></div>
-        <h1 class="ndot">NOTHING X</h1>
+        <h1 class="ndot">CMFxNOTHING</h1>
         <p class="overlay-sub">EARBUD CONTROL · UNOFFICIAL</p>
         <button id="connectBtn" class="btn-large"><span class="btn-label">INITIALIZE LINK</span></button>
         <div id="connect-status" class="connect-status" aria-live="polite"></div>
@@ -38,7 +38,7 @@
     </div>
 
     <nav>
-        <div class="logo ndot">NOTHING X</div>
+        <div class="logo ndot">CMFxNOTHING</div>
         <div class="menu">
             <span class="nav-indicator" aria-hidden="true"></span>
             <button class="nav-btn active" data-target="dashboard">DASHBOARD</button>
@@ -274,9 +274,32 @@
                 <div class="setting-item">
                     <label class="muted">FIRMWARE: <span id="fw-ver">--</span></label>
                 </div>
+                <div class="setting-item">
+                    <label>HELP</label>
+                    <a class="btn mini help-btn" href="https://github.com/Coffee2028/CMFxNothing-Unofficial/issues/new/choose"
+                        target="_blank" rel="noopener">REPORT A BUG</a>
+                </div>
+                <div class="setting-item" id="update-row" hidden>
+                    <label>APP VERSION <span id="app-version" class="update-version">--</span>
+                        <span id="update-text" class="update-text"></span></label>
+                    <button class="btn mini update-btn" id="update-btn">CHECK</button>
+                </div>
             </div>
         </section>
     </main>
+
+    <!-- UPDATE BANNER (desktop app only) -->
+    <div id="update-banner" class="update-banner" role="status" hidden>
+        <span class="ub-dot" aria-hidden="true"></span>
+        <span class="ub-text" id="update-banner-text"></span>
+        <button class="btn mini ub-action" id="update-banner-action">RESTART</button>
+        <button class="ub-close" id="update-banner-close" aria-label="Dismiss">
+            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="1.5" fill="none">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+    </div>
 
     <!-- EAR TIP FIT TEST MODAL -->
     <div id="fit-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="fit-title">
