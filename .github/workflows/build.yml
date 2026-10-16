@@ -1,0 +1,109 @@
+name: Build Nothing X
+
+# Builds the Windows installer and the Mac apps on GitHub's own computers and
+# publishes them on the Releases page as "Nothing X <version>".
+#
+# Runs automatically when package.json (for example a version bump) or this
+# file changes on main, or by hand: Actions tab -> "Build Nothing X" -> "Run workflow".
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - .github/workflows/build.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            script: dist:win
+          - name: Mac
+            os: macos-latest
+            script: dist:mac
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+
+      - name: Install tools
+        run: npm ci
+
+      - name: Build app
+        run: npm run ${{ matrix.script }}
+        env:
+          # No paid signing certificates: Windows stays unsigned, the Mac app is ad-hoc signed
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nothing-x-${{ matrix.name }}
+          path: |
+            release/*.exe
+            release/*.dmg
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read version
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Nothing X ${{ steps.version.outputs.version }}
+          make_latest: true
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: dist/*
+          body: |
+            Unofficial, community-made app for Nothing and CMF earbuds. Not affiliated with Nothing Technology.
+
+            ### Windows
+            1. Download **Nothing-X-Setup-${{ steps.version.outputs.version }}.exe** and run it.
+            2. If Windows shows *"Windows protected your PC"*, click **More info → Run anyway** (the app isn't code-signed).
+            3. Installing a newer version updates the app and keeps your settings.
+
+            ### Mac
+            1. Download the right file:
+               - **Apple Silicon** (M1, M2, M3, M4…): `Nothing-X-${{ steps.version.outputs.version }}-mac-arm64.dmg`
+               - **Intel Mac**: `Nothing-X-${{ steps.version.outputs.version }}-mac-x64.dmg`
+               - Not sure? Apple menu → About This Mac: "Chip: Apple…" means Apple Silicon.
+            2. Open the .dmg and drag **Nothing X** into **Applications**.
+            3. The first time, macOS says it can't verify the app (it isn't notarized by Apple). Click **Done**, then open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+            4. Allow Bluetooth when asked.
+            5. If macOS ever says the app *"is damaged"*, open Terminal and run: `xattr -cr "/Applications/Nothing X.app"`
+
+            ### Connecting
+            Pair your earbuds in your computer's Bluetooth settings first, take them out of the case, then click **Initialize Link**.
