@@ -1,0 +1,83 @@
+name: Bug report
+description: Something isn't working right in Nothing X
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this! The more detail you give, the faster it can be fixed.
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown in Nothing X under Settings → App version.
+      placeholder: "1.0.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: computer
+    attributes:
+      label: Computer
+      options:
+        - Windows
+        - Mac (Apple Silicon)
+        - Mac (Intel)
+        - Browser version (start_app.bat / dev server)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: earbuds
+    attributes:
+      label: Earbuds
+      options:
+        - Nothing Ear (a)
+        - Nothing Ear
+        - Nothing Ear (3)
+        - Nothing Ear (3a)
+        - Nothing Ear (2)
+        - Nothing Ear (1)
+        - Nothing Ear (stick)
+        - Nothing Ear (open)
+        - Nothing Headphone (1)
+        - Nothing Headphone (1) Pro
+        - Nothing Headphone (a)
+        - CMF Buds
+        - CMF Buds Pro
+        - CMF Buds Pro 2
+        - CMF Buds 2
+        - CMF Buds 2a
+        - CMF Buds 2 Plus
+        - CMF Neckband Pro
+        - CMF Headphone Pro
+        - CMF Clip Pro
+        - Other (write it below)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead? Screenshots help a lot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen again
+      placeholder: |
+        1. Open Nothing X
+        2. Click Initialize Link
+        3. ...
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Error messages (optional)
+      description: In the app press F12, open the Console tab and paste anything shown in red.
+      render: text
