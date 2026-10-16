@@ -1641,6 +1641,140 @@ body.theme-gold #connectBtn:hover { box-shadow: 0 0 20px rgba(255,215,0,0.6); }
   .nav-indicator, #overlay { transition: none; }
 }
 
+/* ===================== EAR TIP FIT TEST ===================== */
+.fit-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.fit-intro {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #999;
+}
+
+.fit-row .btn { flex-shrink: 0; }
+
+.fit-dialog {
+  position: relative;
+  width: min(460px, calc(100% - 32px));
+  padding: 32px 28px 28px;
+  border-radius: 20px;
+  background: rgba(10, 10, 10, 0.96);
+  border: 1px solid #2a2a2a;
+  text-align: center;
+}
+
+.fit-dialog .modal-header { justify-content: center; margin-bottom: 28px; }
+.fit-dialog .modal-header h2 {
+  font-family: var(--font-dot);
+  font-weight: 600;
+  font-size: 20px;
+  letter-spacing: 3px;
+}
+
+.fit-buds {
+  display: flex;
+  justify-content: center;
+  gap: 40px;
+  margin-bottom: 24px;
+}
+
+.fit-bud { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+.fit-ring {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #333;
+  /* dot-matrix halo */
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.10) 1px, transparent 1.5px) 0 0 / 10px 10px,
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.04), transparent 70%);
+  transition: border-color 0.4s, box-shadow 0.4s, background-color 0.4s;
+}
+
+.fit-ring::after { /* expanding pulse while testing */
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  opacity: 0;
+}
+
+.fit-side {
+  font-family: var(--font-display);
+  font-size: 44px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.fit-status {
+  font-family: var(--font-tech);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #777;
+  min-height: 14px;
+}
+
+.fit-bud[data-state="testing"] .fit-ring { border-style: solid; border-color: #444; }
+.fit-bud[data-state="testing"] .fit-ring::after { animation: fit-pulse 1.6s ease-out infinite; }
+.fit-bud[data-state="testing"] .fit-status { color: #ccc; }
+
+.fit-bud[data-state="good"] .fit-ring {
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 28px rgba(255, 255, 255, 0.18), inset 0 0 20px rgba(255, 255, 255, 0.06);
+}
+.fit-bud[data-state="good"] .fit-status { color: #fff; }
+
+.fit-bud[data-state="adjust"] .fit-ring {
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--accent) 45%, transparent);
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.fit-bud[data-state="adjust"] .fit-status { color: var(--accent); }
+
+.fit-bud[data-state="missing"] .fit-ring { opacity: 0.45; }
+.fit-bud[data-state="missing"] .fit-side { color: #777; }
+
+@keyframes fit-pulse {
+  0% { transform: scale(1); opacity: 0.9; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.fit-msg {
+  min-height: 42px;
+  margin: 0 auto 22px;
+  max-width: 34ch;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #bbb;
+}
+
+.fit-start { min-width: 180px; padding: 13px 24px; }
+.fit-start:disabled { opacity: 0.5; cursor: default; }
+
+.fit-dialog .modal-header { padding: 0 44px; }
+
+@media (max-width: 520px) {
+  .fit-dialog .modal-header h2 { font-size: 17px; letter-spacing: 2px; }
+  .fit-row { flex-direction: column; align-items: stretch; }
+  .fit-buds { gap: 24px; }
+  .fit-ring { width: 92px; height: 92px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fit-bud[data-state="testing"] .fit-ring::after { animation: none; opacity: 0.6; }
+}
+
 /* ===================== RESPONSIVE =====================
    The layout had no breakpoints, so the 220px sidebar squeezed
    everything off-screen in narrow windows. */

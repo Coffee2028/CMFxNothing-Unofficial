@@ -1,7 +1,7 @@
 {
   "name": "nothing-ear-app",
   "productName": "Nothing X",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Unofficial desktop controller for Nothing and CMF earbuds",
   "main": "main.js",
   "author": "Coffee",

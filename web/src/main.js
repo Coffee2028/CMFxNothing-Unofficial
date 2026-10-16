@@ -382,8 +382,9 @@ const app = {
     this.loadState();
     console.log("App Initialized.");
 
-    // Quick tiles, status pill, nav indicator
+    // Quick tiles, fit test, status pill, nav indicator
     this.setupTiles();
+    this.setupFitTest();
     this.updateTiles();
     this.setLinkState('offline');
     this.setConnectUI('idle');
@@ -542,6 +543,97 @@ const app = {
     const customEQ = this.settings.eqMode === 'advanced';
     set('tile-eq', customEQ ? 'CUSTOM' : (EQ[this.settings.eqId] || 'BALANCED'), customEQ || this.settings.eqId !== 1);
     set('tile-game', this.settings.lowLatency ? 'ON' : 'OFF', !!this.settings.lowLatency);
+  },
+
+  // --- EAR TIP FIT TEST ---
+  setupFitTest() {
+    const modal = document.getElementById('fit-modal');
+    if (!modal) return;
+    document.getElementById('fit-open')?.addEventListener('click', () => this.openFitTest());
+    document.getElementById('fit-close')?.addEventListener('click', () => this.closeFitTest());
+    document.getElementById('fit-start')?.addEventListener('click', () => this.runFitTest());
+    modal.addEventListener('click', (e) => { if (e.target === modal) this.closeFitTest(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) this.closeFitTest();
+    });
+    this.ear.onFitTest = (left, right) => this.showFitResult(left, right);
+  },
+
+  openFitTest() {
+    this.setFitState('idle');
+    document.getElementById('fit-modal').classList.remove('hidden');
+  },
+
+  closeFitTest() {
+    clearTimeout(this.fitTimer);
+    this.fitRunning = false;
+    document.getElementById('fit-modal').classList.add('hidden');
+  },
+
+  runFitTest() {
+    clearTimeout(this.fitTimer);
+    if (this.ear.isConnected) {
+      this.setFitState('testing');
+      this.fitRunning = true;
+      this.ear.startFitTest();
+      // The earbuds play a short tone and answer within a few seconds
+      this.fitTimer = setTimeout(() => this.setFitState('timeout'), 20000);
+    } else if (this.linkState === 'demo') {
+      this.setFitState('testing');
+      this.fitRunning = true;
+      const pick = () => (Math.random() < 0.7 ? 0 : 1);
+      this.fitTimer = setTimeout(() => this.showFitResult(pick(), pick()), 3500);
+    } else {
+      this.setFitState('offline');
+    }
+  },
+
+  // state: idle | testing | timeout | offline
+  setFitState(state) {
+    const text = {
+      idle: 'Put both earbuds in your ears, then start the test. You’ll hear a short sound.',
+      testing: 'Testing… keep still for a few seconds.',
+      timeout: 'No result from the earbuds. Make sure both are in your ears and connected. Some models don’t support this test.',
+      offline: 'Connect your earbuds first, then run the test.'
+    }[state];
+    const budState = state === 'testing' ? 'testing' : 'idle';
+    const budLabel = state === 'testing' ? 'TESTING' : 'READY';
+    this.setFitBud('fit-l', budState, budLabel);
+    this.setFitBud('fit-r', budState, budLabel);
+    document.getElementById('fit-msg').textContent = text;
+    const btn = document.getElementById('fit-start');
+    btn.disabled = state === 'testing';
+    btn.textContent = state === 'testing' ? 'TESTING…' : state === 'idle' ? 'START TEST' : 'TRY AGAIN';
+  },
+
+  setFitBud(id, state, label) {
+    const bud = document.getElementById(id);
+    if (!bud) return;
+    bud.dataset.state = state;
+    bud.querySelector('.fit-status').textContent = label;
+  },
+
+  // Results per side: 0 = good seal, 1 = poor fit, 2 = not in ear / not connected
+  showFitResult(left, right) {
+    if (!this.fitRunning) return; // ignore stray results when the window isn't testing
+    this.fitRunning = false;
+    clearTimeout(this.fitTimer);
+
+    const look = (v) => v === 0 ? ['good', 'GOOD SEAL'] : v === 1 ? ['adjust', 'ADJUST'] : ['missing', 'NOT DETECTED'];
+    this.setFitBud('fit-l', ...look(left));
+    this.setFitBud('fit-r', ...look(right));
+
+    let msg;
+    if (left === 2 || right === 2) msg = 'Make sure both earbuds are connected and in your ears, then try again.';
+    else if (left === 0 && right === 0) msg = 'Perfect seal on both sides. You’re ready!';
+    else if (left === 1 && right === 1) msg = 'Adjust both earbuds or try another tip size, then test again.';
+    else if (left === 1) msg = 'Adjust the left earbud or try another tip size, then test again.';
+    else msg = 'Adjust the right earbud or try another tip size, then test again.';
+
+    document.getElementById('fit-msg').textContent = msg;
+    const btn = document.getElementById('fit-start');
+    btn.disabled = false;
+    btn.textContent = 'TEST AGAIN';
   },
 
   // Sliding highlight behind the active nav tab

@@ -10,6 +10,11 @@ const CMD_BATTERY_REQ = 49159; // 0xC007
 const CMD_BATTERY_RES_1 = 57345; // 0xE001
 const CMD_BATTERY_RES_2 = 16391; // 0x4007
 
+// Ear tip fit test (same commands as ear (web)): start it, then the earbuds
+// answer with one result byte per side: 0 = good seal, 1 = poor fit, 2 = not in ear
+const CMD_FIT_TEST_START = 0xF014; // 61460
+const CMD_FIT_TEST_RESULT = 0xE00D; // 57357
+
 export class ConnectionManager {
     constructor() {
         this.port = null;
@@ -344,6 +349,11 @@ export class ConnectionManager {
         else if (cmd === 0x4018) {
             this.parseGesturePacket(data);
         }
+        // EAR TIP FIT TEST RESULT (0xE00D): payload byte 0 = left, byte 1 = right
+        else if (cmd === CMD_FIT_TEST_RESULT) {
+            this.log(`Fit test result: L=${data[8]} R=${data[9]}`);
+            if (this.onFitTest) this.onFitTest(data[8], data[9]);
+        }
         else {
             // console.log(`RX CMD: ${cmd} (0x${cmd.toString(16).toUpperCase()}) Raw: ${hex}`);
         }
@@ -417,6 +427,11 @@ export class ConnectionManager {
         // ID 0xF040 (61504). 1=On, 2=Off
         this.log(`Set Game Mode: ${enabled}`);
         this.sendCommand(0xF040, [enabled ? 1 : 2, 0x00]);
+    }
+
+    startFitTest() {
+        this.log("Starting ear tip fit test");
+        return this.sendCommand(CMD_FIT_TEST_START, [0x01]);
     }
 
     setInEar(enabled) {
