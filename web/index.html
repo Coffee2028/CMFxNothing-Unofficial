@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nothing X</title>
+    <link rel="stylesheet" href="/src/style.css">
+</head>
+
+<body>
+    <!-- "Goo" filter used by the Bubble Pop battery style -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <defs>
+            <filter id="goo">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" />
+                <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9" result="goo" />
+                <feComposite in="SourceGraphic" in2="goo" operator="atop" />
+            </filter>
+        </defs>
+    </svg>
+
+    <!-- Liquid Background (Sleek Red/Black) -->
+    <div class="liquid-bg">
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+    </div>
+
+    <!-- Intro Overlay -->
+    <div id="overlay">
+        <div class="overlay-grid" aria-hidden="true"></div>
+        <h1 class="ndot">NOTHING X</h1>
+        <p class="overlay-sub">EARBUD CONTROL · UNOFFICIAL</p>
+        <button id="connectBtn" class="btn-large"><span class="btn-label">INITIALIZE LINK</span></button>
+        <div id="connect-status" class="connect-status" aria-live="polite"></div>
+        <button id="demoBtn" class="btn-demo">PREVIEW WITHOUT EARBUDS</button>
+    </div>
+
+    <nav>
+        <div class="logo ndot">NOTHING X</div>
+        <div class="menu">
+            <span class="nav-indicator" aria-hidden="true"></span>
+            <button class="nav-btn active" data-target="dashboard">DASHBOARD</button>
+            <button class="nav-btn" data-target="controls">CONTROLS</button>
+            <button class="nav-btn" data-target="eq">EQUALIZER</button>
+            <button class="nav-btn" data-target="settings">SETTINGS</button>
+        </div>
+    </nav>
+
+    <main>
+        <!-- DASHBOARD -->
+        <section id="dashboard" class="page active">
+            <div class="page-head">
+                <h1 class="page-title">DASHBOARD</h1>
+                <button id="link-status" class="link-status" data-state="offline" disabled>
+                    <span class="ls-dot"></span><span class="ls-text">OFFLINE</span>
+                </button>
+            </div>
+
+            <div class="buds-container">
+                <!-- Left Bud -->
+                <div class="bud-card" data-side="left">
+                    <div class="bud-visual">
+                        <div class="bud-glass"></div>
+                        <div class="bud-liquid" id="liq-l"></div>
+                        <div class="bud-content">
+                            <div class="bud-label">L</div>
+                            <div class="bud-pct" id="pct-l"><span class="pct-num">--</span><span class="pct-unit">%</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Bud -->
+                <div class="bud-card" data-side="right">
+                    <div class="bud-visual">
+                        <div class="bud-glass"></div>
+                        <div class="bud-liquid" id="liq-r"></div>
+                        <div class="bud-content">
+                            <div class="bud-label">R</div>
+                            <div class="bud-pct" id="pct-r"><span class="pct-num">--</span><span class="pct-unit">%</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="case-container">
+                <div class="case-pill">
+                    <span class="ndot">CASE</span>
+                    <span id="case-pct">-- %</span>
+                </div>
+            </div>
+
+            <!-- QUICK TILES: shortcuts to the most-used controls -->
+            <div class="quick-tiles">
+                <button class="tile" id="tile-anc">
+                    <svg class="tile-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 16 0" /><path d="M7 12a5 5 0 0 1 10 0" /><circle cx="12" cy="12" r="1.6" /></svg>
+                    <span class="tile-label">NOISE</span>
+                    <span class="tile-value">OFF</span>
+                </button>
+                <button class="tile" id="tile-eq">
+                    <svg class="tile-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7" /></svg>
+                    <span class="tile-label">EQ</span>
+                    <span class="tile-value">BALANCED</span>
+                </button>
+                <button class="tile" id="tile-game">
+                    <svg class="tile-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 5 14h6l-1 7 8-11h-6z" /></svg>
+                    <span class="tile-label">GAME MODE</span>
+                    <span class="tile-value">OFF</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- CONTROLS -->
+        <section id="controls" class="page">
+            <div class="page-head"><h1 class="page-title">CONTROLS</h1></div>
+            <div class="card">
+                <h2>NOISE CONTROL</h2>
+                <div class="btn-group" id="anc-group">
+                    <button class="btn" data-anc="1">NOISE CANCELLATION</button>
+                    <button class="btn" data-anc="7">TRANSPARENCY</button>
+                    <button class="btn" data-anc="5">OFF</button>
+                </div>
+                <!-- ANC Slider Wrapper -->
+                <div id="anc-wrapper" class="collapsed">
+                    <div class="control-row">
+                        <label>INTENSITY</label>
+                        <div class="btn-group-mini">
+                            <button class="btn mini">HIGH</button>
+                            <button class="btn mini">MID</button>
+                            <button class="btn mini">LOW</button>
+                            <button class="btn mini">ADAPTIVE</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BASS ENHANCE CARD -->
+            <div class="card">
+                <h2>BASS ENHANCE</h2>
+
+                <div class="switch-row">
+                    <div id="sw-bass" class="switch"></div>
+                    <span class="switch-text">ENABLE</span>
+                </div>
+
+                <!-- Slabs Wrapper -->
+                <div id="bass-wrapper" class="bass-wrapper collapsed">
+                    <div class="bass-steps">
+                        <div class="step" data-lvl="1"></div>
+                        <div class="step" data-lvl="2"></div>
+                        <div class="step" data-lvl="3"></div>
+                        <div class="step" data-lvl="4"></div>
+                        <div class="step" data-lvl="5"></div>
+                        <div class="high-bass-warning">HIGH BASS</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- EQ -->
+        <section id="eq" class="page">
+            <div class="page-head"><h1 class="page-title">EQUALIZER</h1></div>
+            <div class="card">
+                <h2>EQUALIZER PRESETS</h2>
+
+                <!-- NEW VISUALIZER -->
+                <div class="eq-visualizer">
+                    <div class="eq-circle"></div>
+                    <span class="eq-label label-mids">MIDS</span>
+                    <span class="eq-label label-bass">BASS</span>
+                    <span class="eq-label label-treble">TREBLE</span>
+                    <svg viewBox="0 0 200 200" class="eq-svg">
+                        <defs>
+                            <radialGradient id="blobGradient" cx="50%" cy="50%" r="50%" fx="30%" fy="30%">
+                                <stop id="bg-stop-1" offset="0%" style="stop-color:rgba(255,50,50,0.9)" />
+                                <stop id="bg-stop-2" offset="40%" style="stop-color:rgba(230,30,37,0.6)" />
+                                <stop id="bg-stop-3" offset="100%" style="stop-color:rgba(230,30,37,0)" />
+                            </radialGradient>
+                            <filter id="blurFilter">
+                                <feGaussianBlur in="SourceGraphic" stdDeviation="4" />
+                            </filter>
+                        </defs>
+                        <!-- Start with Balanced Circle (8 points for morphing) -->
+                        <path id="eq-blob" d="M100,30 Q150,30 170,100 Q150,170 100,170 Q50,170 30,100 Q50,30 100,30 Z"
+                            filter="url(#blurFilter)" />
+                    </svg>
+                </div>
+
+                <div class="eq-controls-header">
+                    <span class="eq-mode-label">MODE</span>
+                    <div class="toggle-group">
+                        <button id="mode-simple" class="mode-link active">PRESETS</button>
+                        <button id="mode-advanced" class="mode-link">ADVANCED</button>
+                    </div>
+                </div>
+
+                <!-- Simple Mode -->
+                <div id="eq-simple" class="grid-buttons">
+                    <button class="btn" data-eq="1">BALANCED</button>
+                    <button class="btn" data-eq="2">MORE BASS</button>
+                    <button class="btn" data-eq="3">MORE TREBLE</button>
+                    <button class="btn" data-eq="4">VOICE</button>
+                </div>
+
+                <!-- Advanced Mode (Sliders) -->
+                <div id="eq-advanced" class="advanced-controls" style="display:none;">
+                    <div class="adv-slider">
+                        <label>MIDS</label>
+                        <input type="range" id="adv-mid" min="0" max="100" value="50">
+                    </div>
+                    <div class="adv-slider">
+                        <label>TREBLE</label>
+                        <input type="range" id="adv-treble" min="0" max="100" value="50">
+                    </div>
+                    <div class="adv-slider">
+                        <label>BASS</label>
+                        <input type="range" id="adv-bass" min="0" max="100" value="50">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="settings" class="page">
+            <div class="page-head"><h1 class="page-title">SETTINGS</h1></div>
+            <div class="card">
+                <div class="setting-item">
+                    <label>LOW LATENCY MODE</label>
+                    <div class="switch" id="sw-game"></div>
+                </div>
+                <div class="setting-item">
+                    <label>IN-EAR DETECTION</label>
+                    <div class="switch" id="sw-inear"></div>
+                </div>
+                <div class="setting-item">
+                    <label>THEME</label>
+                    <div class="custom-dropdown" id="theme-dropdown" data-value="default">
+                        <div class="dropdown-selected" id="theme-selected-text">DEFAULT (RED)</div>
+                        <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <div class="dropdown-options" id="theme-options">
+                            <div class="dropdown-option" data-value="default">DEFAULT (RED)</div>
+                            <div class="dropdown-option" data-value="matrix">MATRIX (GREEN)</div>
+                            <div class="dropdown-option" data-value="blue">NEON (BLUE)</div>
+                            <div class="dropdown-option" data-value="cyberpunk">CYBERPUNK (MAGENTA)</div>
+                            <div class="dropdown-option" data-value="sunset">SUNSET (ORANGE)</div>
+                            <div class="dropdown-option" data-value="ocean">DEEP OCEAN (TEAL)</div>
+                            <div class="dropdown-option" data-value="gold">LUXURY (GOLD)</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label>BATTERY STYLE</label>
+                    <div class="custom-dropdown" id="battery-dropdown" data-value="soda">
+                        <div class="dropdown-selected" id="battery-selected-text">SODA</div>
+                        <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                        <div class="dropdown-options" id="battery-options">
+                            <div class="dropdown-option" data-value="soda">SODA</div>
+                            <div class="dropdown-option" data-value="sparkle">SPARKLING</div>
+                            <div class="dropdown-option" data-value="goo">BUBBLE POP</div>
+                            <div class="dropdown-option" data-value="classic">CLASSIC</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label class="muted">FIRMWARE: <span id="fw-ver">--</span></label>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- GESTURE MODAL (Immersive) -->
+    <div id="gesture-modal" class="modal hidden">
+        <div class="modal-content immersive-card">
+
+            <!-- Left Column: Visual Tutorial -->
+            <div class="gesture-visual">
+                <svg viewBox="0 0 200 350" class="stem-svg">
+                    <defs>
+                        <!-- Glassy Stem Body Gradient -->
+                        <linearGradient id="glassStem" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style="stop-color:rgba(255,255,255,0.05);" />
+                            <stop offset="20%" style="stop-color:rgba(255,255,255,0.15);" /> <!-- Highlight -->
+                            <stop offset="50%" style="stop-color:rgba(255,255,255,0.02);" />
+                            <stop offset="90%" style="stop-color:rgba(255,255,255,0.05);" />
+                        </linearGradient>
+                        <!-- Internal Component (Black Cylinder) -->
+                        <linearGradient id="innerComp" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" style="stop-color:#111;" />
+                            <stop offset="50%" style="stop-color:#333;" />
+                            <stop offset="100%" style="stop-color:#111;" />
+                        </linearGradient>
+                    </defs>
+
+                    <!-- Head (Silicone Tip area) -->
+                    <path d="M60,60 C40,80 40,120 60,140 C70,150 90,150 100,140 L100,60 Z" fill="#222" opacity="0.9" />
+
+                    <!-- Stem Outline (Glass Shell) -->
+                    <rect x="90" y="40" width="50" height="220" rx="25" fill="url(#glassStem)"
+                        stroke="rgba(255,255,255,0.1)" stroke-width="1.5" />
+
+                    <!-- Internal "Magnet/Battery" Block -->
+                    <rect x="100" y="60" width="30" height="80" rx="10" fill="url(#innerComp)" />
+                    <rect x="105" y="160" width="20" height="80" rx="10" fill="#111" />
+
+                    <!-- Detailed "Dot" (Red/White depending on side, will cycle in JS maybe? Default Red) -->
+                    <circle cx="115" cy="220" r="4" fill="red" id="side-dot" />
+
+                    <!-- Pinch Zone Overlay (Interactive Area) -->
+                    <rect id="pinch-zone" x="80" y="200" width="70" height="30" fill="transparent" />
+
+                    <!-- Pinch Indicators (Animated) -->
+                    <circle id="pinch-point" cx="135" cy="110" r="10" fill="white" filter="blur(4px)" opacity="0" />
+                    <circle id="finger-indicator" cx="170" cy="110" r="25" fill="rgba(255,255,255,0.1)" stroke="white"
+                        opacity="0" />
+                </svg>
+                <div class="gesture-label" id="gesture-instruction">SELECT AN ACTION</div>
+            </div>
+
+            <!-- Right Column: Controls -->
+            <div class="gesture-controls">
+                <div class="modal-header">
+                    <h2 id="modal-title">CONFIGURE LEFT</h2>
+                    <button class="close-btn-sleek" id="close-modal">
+                        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="1.5"
+                            fill="none">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="gesture-row" data-anim="double">
+                    <label>DOUBLE PINCH</label>
+                    <select class="gesture-select" id="g-double">
+                        <option value="0">NO ACTION</option>
+                        <option value="8">PLAY / PAUSE</option>
+                        <option value="9">NEXT TRACK</option>
+                        <option value="10">PREV TRACK</option>
+                        <option value="11">VOICE ASSISTANT</option>
+                        <option value="1">NOISE CONTROL</option>
+                        <option value="12">VOLUME UP</option>
+                        <option value="13">VOLUME DOWN</option>
+                    </select>
+                </div>
+
+                <div class="gesture-row" data-anim="triple">
+                    <label>TRIPLE PINCH</label>
+                    <select class="gesture-select" id="g-triple">
+                        <option value="0">NO ACTION</option>
+                        <option value="8">PLAY / PAUSE</option>
+                        <option value="9">NEXT TRACK</option>
+                        <option value="10">PREV TRACK</option>
+                        <option value="11">VOICE ASSISTANT</option>
+                        <option value="1">NOISE CONTROL</option>
+                        <option value="12">VOLUME UP</option>
+                        <option value="13">VOLUME DOWN</option>
+                    </select>
+                </div>
+
+                <div class="gesture-row" data-anim="hold">
+                    <label>PINCH & HOLD</label>
+                    <select class="gesture-select" id="g-hold">
+                        <option value="0">NO ACTION</option>
+                        <option value="1">NOISE CONTROL</option>
+                        <option value="8">PLAY / PAUSE</option>
+                        <option value="9">NEXT TRACK</option>
+                        <option value="10">PREV TRACK</option>
+                        <option value="11">VOICE ASSISTANT</option>
+                        <option value="12">VOLUME UP</option>
+                        <option value="13">VOLUME DOWN</option>
+                    </select>
+                </div>
+
+                <div class="gesture-row" data-anim="doublehold">
+                    <label>DOUBLE PINCH & HOLD</label>
+                    <select class="gesture-select" id="g-doublehold">
+                        <option value="0">NO ACTION</option>
+                        <option value="12">VOLUME UP</option>
+                        <option value="13">VOLUME DOWN</option>
+                        <option value="11">VOICE ASSISTANT</option>
+                        <option value="8">PLAY / PAUSE</option>
+                        <option value="9">NEXT TRACK</option>
+                        <option value="10">PREV TRACK</option>
+                        <option value="1">NOISE CONTROL</option>
+                    </select>
+                </div>
+
+                <button id="save-gestures" class="btn active">APPLY CHANGES</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,18 @@
+__pycache__
+node_modules
+.vs
+devicesndpreferences.db
+main.py
+build/
+dist/
+electron/out
+*.spec 
+/.htaccess
+
+# Desktop app build output
+release/
+web/dist/
+
+# Local app data and Claude previews (not part of the project)
+userData/
+Claude outputs/

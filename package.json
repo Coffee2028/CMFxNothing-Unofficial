@@ -1,0 +1,65 @@
+{
+  "name": "nothing-ear-app",
+  "productName": "Nothing X",
+  "version": "1.0.1",
+  "description": "Unofficial desktop controller for Nothing and CMF earbuds",
+  "main": "main.js",
+  "author": "Coffee",
+  "license": "GPL-3.0-only",
+  "private": true,
+  "scripts": {
+    "build:web": "npm --prefix web install && npm --prefix web run build",
+    "start": "npm run build:web && electron .",
+    "dist:win": "npm run build:web && electron-builder --win",
+    "dist:mac": "npm run build:web && electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.coffee.nothingx",
+    "productName": "Nothing X",
+    "copyright": "GPL-3.0. Unofficial app, not affiliated with Nothing Technology.",
+    "directories": {
+      "buildResources": "resources",
+      "output": "release"
+    },
+    "files": [
+      "main.js",
+      "electron/**",
+      "resources/icon.png",
+      "web/dist/**",
+      "LICENSE",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Nothing X",
+      "artifactName": "Nothing-X-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.utilities",
+      "icon": "resources/icon.png"
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "electron": "44.8.0",
+    "electron-builder": "^26.15.3"
+  }
+}

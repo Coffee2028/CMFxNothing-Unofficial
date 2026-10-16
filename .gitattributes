@@ -1,0 +1,7 @@
+# Store text files with LF line endings in git; Windows tools convert on checkout.
+* text=auto
+*.bat text eol=crlf
+*.png binary
+*.ico binary
+*.woff2 binary
+*.exe binary
