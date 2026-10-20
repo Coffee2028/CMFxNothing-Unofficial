@@ -15,6 +15,12 @@ const CMD_BATTERY_RES_2 = 16391; // 0x4007
 const CMD_FIT_TEST_START = 0xF014; // 61460
 const CMD_FIT_TEST_RESULT = 0xE00D; // 57357
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// No answer from the earbuds for this long means the link is gone, even when
+// Windows never reports it (the read just hangs).
+const SILENCE_TIMEOUT_MS = 25000;
+
 export class ConnectionManager {
     constructor() {
         this.port = null;
@@ -28,39 +34,91 @@ export class ConnectionManager {
         this.onBatteryUpdate = null;
         this.opId = 0;
         this.pingInterval = null;
+        this.lastRx = 0;
+
+        // Bound once so the listener can be removed again when the port is closed
+        this.onPortGone = () => this.handleDisconnect();
     }
 
     log(msg) { console.log(`[EAR] ${msg}`); }
 
     async connect() {
+        // Start clean. When the earbuds drop (back in the case, Bluetooth off,
+        // reconnected in Windows) the old port stays open, and opening it again
+        // fails with "The port is already open". That broke Reconnect.
+        await this.closePort();
+
+        let port;
         try {
             this.log("Requesting Port...");
-            this.port = await navigator.serial.requestPort({
+            port = await navigator.serial.requestPort({
                 allowedBluetoothServiceClassIds: [SPP_UUID],
                 filters: [{ bluetoothServiceClassId: SPP_UUID }]
             });
-
-            await this.port.open({ baudRate: 9600, bufferSize: 4096 });
-            this.log("Port Open. 9600 Baud.");
-
-            this.isConnected = true;
-            // Only ONE read loop: a second one used to fight over the same stream
-            this.readLoop().catch(e => this.log("Read loop stopped: " + e.message));
-
-            // Notice when the earbuds go away (case closed, out of range, Bluetooth off)
-            this.port.addEventListener('disconnect', () => this.handleDisconnect());
-
-            // Init Sequence (Match cleffa.js: Open -> Battery -> Sync)
-            await new Promise(r => setTimeout(r, 100));
-            this.log("Requesting Battery...");
-            this.sendCommand(CMD_BATTERY_REQ);
-
-            // Start Polling
-            this.startPolling();
-            return true;
+            await this.openWithRetry(port);
         } catch (e) {
             this.log("Connect Failed: " + e.message);
             throw e;
+        }
+        this.log("Port Open. 9600 Baud.");
+
+        this.port = port;
+        this.isConnected = true;
+        this.lastRx = Date.now();
+
+        // Notice when the earbuds go away (case closed, out of range, Bluetooth off)
+        port.addEventListener('disconnect', this.onPortGone);
+
+        // Only ONE read loop: a second one used to fight over the same stream
+        this.readLoop(port).catch(e => this.log("Read loop stopped: " + e.message));
+
+        // Init Sequence (Match cleffa.js: Open -> Battery -> Sync)
+        await sleep(100);
+        this.log("Requesting Battery...");
+        this.sendCommand(CMD_BATTERY_REQ);
+
+        // Start Polling
+        this.startPolling();
+        return true;
+    }
+
+    // Right after Windows reconnects the earbuds, their Bluetooth serial link can
+    // need a few seconds before it accepts a connection, so try a few times.
+    async openWithRetry(port, attempts = 4) {
+        for (let i = 1; ; i++) {
+            try {
+                await port.open({ baudRate: BAUD_RATE, bufferSize: 4096 });
+                return;
+            } catch (e) {
+                // Still open from the last session: close it, then try again
+                if (e?.name === 'InvalidStateError') {
+                    try { await port.close(); } catch { /* not open after all */ }
+                }
+                if (i >= attempts) throw e;
+                this.log(`Open attempt ${i} failed (${e.message}), retrying...`);
+                await sleep(1500);
+            }
+        }
+    }
+
+    // Release the port completely so the next connect can open it again
+    async closePort(port = this.port) {
+        if (!port) return;
+        if (this.port === port) this.isConnected = false;
+        this.stopPolling();
+        port.removeEventListener('disconnect', this.onPortGone);
+
+        const reader = this.reader;
+        if (reader) {
+            try { await reader.cancel(); } catch { /* stream already gone */ }
+            try { reader.releaseLock(); } catch { /* already released */ }
+        }
+        try { await port.close(); } catch { /* already closed or device gone */ }
+
+        if (this.port === port) {
+            this.port = null;
+            this.reader = null;
+            this.writeChain = null;
         }
     }
 
@@ -82,15 +140,16 @@ export class ConnectionManager {
     handleDisconnect() {
         if (!this.isConnected) return;
         this.isConnected = false;
-        if (this.pingInterval) clearInterval(this.pingInterval);
-        this.pingInterval = null;
+        this.stopPolling();
         this.log("Disconnected");
+        // Free the port now, so Reconnect finds it closed
+        this.closePort().catch(() => {});
         if (this.onDisconnect) this.onDisconnect();
     }
 
     async disconnect() {
         this.handleDisconnect();
-        try { await this.port?.close(); } catch { /* already closed */ }
+        await this.closePort();
     }
 
     sendCommand(cmd, payload = []) {
@@ -140,27 +199,32 @@ export class ConnectionManager {
         return crc;
     }
 
-    async readLoop() {
+    async readLoop(port) {
         this.buffer = [];
-        while (this.port.readable && this.isConnected) {
-            const reader = this.port.readable.getReader();
+        while (port.readable && this.isConnected && this.port === port) {
+            const reader = port.readable.getReader();
+            this.reader = reader;
             try {
                 while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
-                    if (value) {
+                    if (value && value.length) {
+                        this.lastRx = Date.now();
                         for (const b of value) this.buffer.push(b);
                         this.processBuffer();
                     }
                 }
             } catch (e) {
-                console.error(e);
+                this.log("Read error: " + e.message);
                 // A read error that isn't recoverable means the link is gone
-                if (!this.port.readable) break;
+                if (!port.readable) break;
             }
-            finally { reader.releaseLock(); }
+            finally {
+                try { reader.releaseLock(); } catch { /* already released */ }
+                if (this.reader === reader) this.reader = null;
+            }
         }
-        this.handleDisconnect();
+        if (this.port === port) this.handleDisconnect();
     }
 
     processBuffer() {
@@ -385,42 +449,22 @@ export class ConnectionManager {
     }
 
     startPolling() {
-        if (this.pingInterval) clearInterval(this.pingInterval);
+        this.stopPolling();
         this.pingInterval = setInterval(() => {
-            if (this.isConnected) {
-                this.sendCommand(CMD_BATTERY_REQ);
+            if (!this.isConnected) return;
+            // Windows doesn't always tell us the earbuds are gone; silence does
+            if (this.lastRx && Date.now() - this.lastRx > SILENCE_TIMEOUT_MS) {
+                this.log("No answer from the earbuds, treating the link as lost");
+                this.handleDisconnect();
+                return;
             }
+            this.sendCommand(CMD_BATTERY_REQ);
         }, 5000);
     }
 
-    // ANC MAPPING (Based on bluetooth_socket.js)
-    // UI Sends: 1(High), 2(Mid), 3(Low), 4(Adaptive), 7(Trans), 5(Off)
-    // Protocol Expects: 0x05(High), 0x04(Mid), 0x03(Low), 0x01(Adapt), 0x07(Trans), 0x02(Off)
-    setANC(uiMode) {
-        let protoMode = 0x05; // Default Off (0x05)
-        switch (uiMode) {
-            case 1: protoMode = 0x02; break; // High
-            case 2: protoMode = 0x03; break; // Mid (Was 0x04, User says swapped)
-            case 3: protoMode = 0x04; break; // Low (Was 0x03, User says swapped)
-            case 4: protoMode = 0x01; break; // Adaptive
-            case 7: protoMode = 0x07; break; // Transparency
-            case 5: protoMode = 0x05; break; // Off (User says 0x05 is OFF)
-            default: protoMode = 0x05;
-        }
-        this.log(`Set ANC: UI=${uiMode} -> Proto=0x${protoMode.toString(16)}`);
-        this.sendCommand(0xF00F, [0x01, protoMode, 0x00]);
-    }
-
-    setEQ(preset) {
-        // 1=Balanced, 2=More Bass, 3=More Treble, 4=Voice
-        this.log(`Set EQ: ${preset}`);
-        this.sendCommand(0xF010, [preset, 0x00]);
-    }
-
-    setBass(enabled, level) {
-        // ID 0xF051 (61521). Level is 1-5. Verify mult * 2
-        this.log(`Set Bass: On=${enabled} Lvl=${level}`);
-        this.sendCommand(0xF051, [enabled ? 1 : 0, level * 2]);
+    stopPolling() {
+        if (this.pingInterval) clearInterval(this.pingInterval);
+        this.pingInterval = null;
     }
 
     setLowLatency(enabled) {
