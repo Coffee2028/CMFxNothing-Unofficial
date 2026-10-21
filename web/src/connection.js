@@ -15,6 +15,9 @@ const CMD_BATTERY_RES_2 = 16391; // 0x4007
 const CMD_FIT_TEST_START = 0xF014; // 61460
 const CMD_FIT_TEST_RESULT = 0xE00D; // 57357
 
+// Find my earbuds (ring one earbud)
+const CMD_RING = 0xF002; // 61442
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // No answer from the earbuds for this long means the link is gone, even when
@@ -380,11 +383,18 @@ export class ConnectionManager {
         }
     }
 
-    // Gesture: Side(Left=2, Right=3), Type(Double=2, Triple=3, Hold=4), ActionID
+    // Gesture: side (left = 2, right = 3), gesture type and action code (see gestures.js)
     setGesture(side, gestureType, actionId) {
         const sideByte = side === 'left' ? 2 : 3;
         const payload = [0x01, sideByte, 0x01, gestureType, actionId];
         this.sendCommand(0xF003, payload);
+    }
+
+    // Find my earbuds: make one earbud chirp loudly (0xF002, same as ear (web)).
+    // Payload: side (2 = left, 3 = right), then 1 = ring / 0 = stop.
+    ringBud(side, on) {
+        this.log(`${on ? 'Ringing' : 'Stopping'} ${side} earbud`);
+        return this.sendCommand(CMD_RING, [side === 'left' ? 0x02 : 0x03, on ? 0x01 : 0x00]);
     }
 
     // Attempt to READ Gestures (Verified 0xC018)
@@ -434,7 +444,7 @@ export class ConnectionManager {
             if (offset + 3 < data.length) {
                 gestures.push({
                     side: (data[offset] === 2) ? 'left' : 'right',
-                    type: data[offset + 2], // 2=Double, 3=Triple, 4=Hold
+                    type: data[offset + 2], // 2 = double, 3 = triple, 7 = hold, 9 = double + hold
                     action: data[offset + 3]
                 });
             }
@@ -465,6 +475,36 @@ export class ConnectionManager {
     stopPolling() {
         if (this.pingInterval) clearInterval(this.pingInterval);
         this.pingInterval = null;
+    }
+
+    // ANC MAPPING (Based on bluetooth_socket.js)
+    // UI Sends: 1(High), 2(Mid), 3(Low), 4(Adaptive), 7(Trans), 5(Off)
+    // Protocol Expects: 0x05(High), 0x04(Mid), 0x03(Low), 0x01(Adapt), 0x07(Trans), 0x02(Off)
+    setANC(uiMode) {
+        let protoMode = 0x05; // Default Off (0x05)
+        switch (uiMode) {
+            case 1: protoMode = 0x02; break; // High
+            case 2: protoMode = 0x03; break; // Mid (Was 0x04, User says swapped)
+            case 3: protoMode = 0x04; break; // Low (Was 0x03, User says swapped)
+            case 4: protoMode = 0x01; break; // Adaptive
+            case 7: protoMode = 0x07; break; // Transparency
+            case 5: protoMode = 0x05; break; // Off (User says 0x05 is OFF)
+            default: protoMode = 0x05;
+        }
+        this.log(`Set ANC: UI=${uiMode} -> Proto=0x${protoMode.toString(16)}`);
+        this.sendCommand(0xF00F, [0x01, protoMode, 0x00]);
+    }
+
+    setEQ(preset) {
+        // 1=Balanced, 2=More Bass, 3=More Treble, 4=Voice
+        this.log(`Set EQ: ${preset}`);
+        this.sendCommand(0xF010, [preset, 0x00]);
+    }
+
+    setBass(enabled, level) {
+        // ID 0xF051 (61521). Level is 1-5. Verify mult * 2
+        this.log(`Set Bass: On=${enabled} Lvl=${level}`);
+        this.sendCommand(0xF051, [enabled ? 1 : 0, level * 2]);
     }
 
     setLowLatency(enabled) {

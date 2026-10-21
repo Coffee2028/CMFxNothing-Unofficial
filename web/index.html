@@ -165,6 +165,34 @@
                     <button class="btn" id="fit-open">START TEST</button>
                 </div>
             </div>
+
+            <!-- GESTURES CARD -->
+            <div class="card">
+                <h2>GESTURES</h2>
+                <div class="fit-row">
+                    <p class="fit-intro">Choose what double pinch, triple pinch and pinch &amp; hold do on each earbud.</p>
+                    <button class="btn" id="gestures-open">CUSTOMIZE</button>
+                </div>
+            </div>
+
+            <!-- FIND MY EARBUDS CARD -->
+            <div class="card find-card">
+                <h2>FIND MY EARBUDS</h2>
+                <p class="fit-intro">Make an earbud chirp so you can find it. <span class="find-warn">It’s loud — take them out of your ears first.</span></p>
+                <div class="find-buds">
+                    <button class="find-btn" data-side="left" aria-pressed="false">
+                        <span class="find-waves" aria-hidden="true"><i></i><i></i><i></i></span>
+                        <span class="find-side">L</span>
+                        <span class="find-label">RING LEFT</span>
+                    </button>
+                    <button class="find-btn" data-side="right" aria-pressed="false">
+                        <span class="find-waves" aria-hidden="true"><i></i><i></i><i></i></span>
+                        <span class="find-side">R</span>
+                        <span class="find-label">RING RIGHT</span>
+                    </button>
+                </div>
+                <p class="find-msg" id="find-msg" aria-live="polite"></p>
+            </div>
         </section>
 
         <!-- EQ -->
@@ -275,6 +303,10 @@
                     <label class="muted">FIRMWARE: <span id="fw-ver">--</span></label>
                 </div>
                 <div class="setting-item">
+                    <label>WHAT’S NEW</label>
+                    <button class="btn mini help-btn" id="news-open">SEE CHANGES</button>
+                </div>
+                <div class="setting-item">
                     <label>HELP</label>
                     <a class="btn mini help-btn" href="https://github.com/Coffee2028/CMFxNothing-Unofficial/issues/new/choose"
                         target="_blank" rel="noopener">REPORT A BUG</a>
@@ -330,125 +362,54 @@
         </div>
     </div>
 
-    <!-- GESTURE MODAL (Immersive) -->
-    <div id="gesture-modal" class="modal hidden">
-        <div class="modal-content immersive-card">
-
-            <!-- Left Column: Visual Tutorial -->
-            <div class="gesture-visual">
-                <svg viewBox="0 0 200 350" class="stem-svg">
-                    <defs>
-                        <!-- Glassy Stem Body Gradient -->
-                        <linearGradient id="glassStem" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" style="stop-color:rgba(255,255,255,0.05);" />
-                            <stop offset="20%" style="stop-color:rgba(255,255,255,0.15);" /> <!-- Highlight -->
-                            <stop offset="50%" style="stop-color:rgba(255,255,255,0.02);" />
-                            <stop offset="90%" style="stop-color:rgba(255,255,255,0.05);" />
-                        </linearGradient>
-                        <!-- Internal Component (Black Cylinder) -->
-                        <linearGradient id="innerComp" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" style="stop-color:#111;" />
-                            <stop offset="50%" style="stop-color:#333;" />
-                            <stop offset="100%" style="stop-color:#111;" />
-                        </linearGradient>
-                    </defs>
-
-                    <!-- Head (Silicone Tip area) -->
-                    <path d="M60,60 C40,80 40,120 60,140 C70,150 90,150 100,140 L100,60 Z" fill="#222" opacity="0.9" />
-
-                    <!-- Stem Outline (Glass Shell) -->
-                    <rect x="90" y="40" width="50" height="220" rx="25" fill="url(#glassStem)"
-                        stroke="rgba(255,255,255,0.1)" stroke-width="1.5" />
-
-                    <!-- Internal "Magnet/Battery" Block -->
-                    <rect x="100" y="60" width="30" height="80" rx="10" fill="url(#innerComp)" />
-                    <rect x="105" y="160" width="20" height="80" rx="10" fill="#111" />
-
-                    <!-- Detailed "Dot" (Red/White depending on side, will cycle in JS maybe? Default Red) -->
-                    <circle cx="115" cy="220" r="4" fill="red" id="side-dot" />
-
-                    <!-- Pinch Zone Overlay (Interactive Area) -->
-                    <rect id="pinch-zone" x="80" y="200" width="70" height="30" fill="transparent" />
-
-                    <!-- Pinch Indicators (Animated) -->
-                    <circle id="pinch-point" cx="135" cy="110" r="10" fill="white" filter="blur(4px)" opacity="0" />
-                    <circle id="finger-indicator" cx="170" cy="110" r="25" fill="rgba(255,255,255,0.1)" stroke="white"
-                        opacity="0" />
+    <!-- GESTURES (both earbuds on one screen; filled in by main.js) -->
+    <div id="gesture-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gx-title">
+        <div class="modal-content gx-dialog">
+            <button class="close-btn-sleek" id="close-modal" aria-label="Close">
+                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="1.5" fill="none">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
                 </svg>
-                <div class="gesture-label" id="gesture-instruction">SELECT AN ACTION</div>
-            </div>
+            </button>
 
-            <!-- Right Column: Controls -->
-            <div class="gesture-controls">
-                <div class="modal-header">
-                    <h2 id="modal-title">CONFIGURE LEFT</h2>
-                    <button class="close-btn-sleek" id="close-modal">
-                        <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="1.5"
-                            fill="none">
-                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                        </svg>
-                    </button>
+            <aside class="gx-stage">
+                <div class="gx-buds" id="gx-buds"></div>
+                <div class="gx-now">
+                    <div class="gx-pattern" id="gx-now-pattern" aria-hidden="true"></div>
+                    <div class="gx-now-name" id="gx-now-name"></div>
+                    <p class="gx-now-hint" id="gx-now-hint"></p>
                 </div>
+            </aside>
 
-                <div class="gesture-row" data-anim="double">
-                    <label>DOUBLE PINCH</label>
-                    <select class="gesture-select" id="g-double">
-                        <option value="0">NO ACTION</option>
-                        <option value="8">PLAY / PAUSE</option>
-                        <option value="9">NEXT TRACK</option>
-                        <option value="10">PREV TRACK</option>
-                        <option value="11">VOICE ASSISTANT</option>
-                        <option value="1">NOISE CONTROL</option>
-                        <option value="12">VOLUME UP</option>
-                        <option value="13">VOLUME DOWN</option>
-                    </select>
-                </div>
+            <section class="gx-panel">
+                <header class="gx-head">
+                    <h2 id="gx-title">GESTURES</h2>
+                    <p class="gx-sub">Tap an action to set it. Changes save to the earbuds right away. A single pinch always plays / pauses and answers calls.</p>
+                </header>
+                <p class="gx-offline" id="gx-offline" hidden>Connect your earbuds to change gestures.</p>
+                <div class="gx-list" id="gx-list"></div>
+            </section>
+        </div>
+    </div>
 
-                <div class="gesture-row" data-anim="triple">
-                    <label>TRIPLE PINCH</label>
-                    <select class="gesture-select" id="g-triple">
-                        <option value="0">NO ACTION</option>
-                        <option value="8">PLAY / PAUSE</option>
-                        <option value="9">NEXT TRACK</option>
-                        <option value="10">PREV TRACK</option>
-                        <option value="11">VOICE ASSISTANT</option>
-                        <option value="1">NOISE CONTROL</option>
-                        <option value="12">VOLUME UP</option>
-                        <option value="13">VOLUME DOWN</option>
-                    </select>
-                </div>
-
-                <div class="gesture-row" data-anim="hold">
-                    <label>PINCH & HOLD</label>
-                    <select class="gesture-select" id="g-hold">
-                        <option value="0">NO ACTION</option>
-                        <option value="1">NOISE CONTROL</option>
-                        <option value="8">PLAY / PAUSE</option>
-                        <option value="9">NEXT TRACK</option>
-                        <option value="10">PREV TRACK</option>
-                        <option value="11">VOICE ASSISTANT</option>
-                        <option value="12">VOLUME UP</option>
-                        <option value="13">VOLUME DOWN</option>
-                    </select>
-                </div>
-
-                <div class="gesture-row" data-anim="doublehold">
-                    <label>DOUBLE PINCH & HOLD</label>
-                    <select class="gesture-select" id="g-doublehold">
-                        <option value="0">NO ACTION</option>
-                        <option value="12">VOLUME UP</option>
-                        <option value="13">VOLUME DOWN</option>
-                        <option value="11">VOICE ASSISTANT</option>
-                        <option value="8">PLAY / PAUSE</option>
-                        <option value="9">NEXT TRACK</option>
-                        <option value="10">PREV TRACK</option>
-                        <option value="1">NOISE CONTROL</option>
-                    </select>
-                </div>
-
-                <button id="save-gestures" class="btn active">APPLY CHANGES</button>
-            </div>
+    <!-- WHAT'S NEW (shown once after an update, and from Settings) -->
+    <div id="news-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="news-title">
+        <div class="modal-content news-dialog">
+            <button class="close-btn-sleek" id="news-close" aria-label="Close">
+                <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="1.5" fill="none">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+            <div class="news-kicker">WHAT’S NEW</div>
+            <h2 class="news-title" id="news-title"></h2>
+            <div class="news-date" id="news-date"></div>
+            <div class="news-body" id="news-body"></div>
+            <details class="news-older" id="news-older">
+                <summary>EARLIER VERSIONS</summary>
+                <div id="news-older-body"></div>
+            </details>
+            <button class="btn active news-ok" id="news-ok">GOT IT</button>
         </div>
     </div>
 

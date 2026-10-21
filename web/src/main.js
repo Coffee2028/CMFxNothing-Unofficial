@@ -1,13 +1,19 @@
 import { ConnectionManager } from './connection.js'
 import { gsap } from 'gsap' // Bundled locally (was loaded from a CDN, which broke offline)
 import { FizzBattery, BATTERY_STYLES } from './fizz.js'
+import { GESTURES, ACTIONS, NOISE_CYCLES, NOISE_MODES, DEMO_GESTURES, actionKey, noiseCode, svgIcon } from './gestures.js'
+import { earbudSVG } from './earbud.js'
+import { CHANGELOG, APP_VERSION } from './changelog.js'
+
+// Little row of marks showing a gesture: dots for pinches, a bar for a hold
+const patternHTML = (pattern) => pattern.map(p => `<i class="${p === 'h' ? 'hold' : ''}"></i>`).join('');
 
 const app = {
   ear: new ConnectionManager(),
   el: {},
 
   // STATE
-  savedGestures: {},
+  savedGestures: { left: {}, right: {} },
   currentSide: 'left',
   settings: {
     ancMode: 5, // Off
@@ -42,6 +48,7 @@ const app = {
     });
     this.ear.onDisconnect = () => {
       this.setLinkState('offline');
+      ['left', 'right'].forEach(side => { if (this.ringing?.[side]) this.setRing(side, false, false); });
       this.toast('Earbuds disconnected · tap OFFLINE to reconnect');
     };
 
@@ -114,19 +121,17 @@ const app = {
       this.updateBassSteps((enabled === 1) ? level : 0);
     };
 
-    // 5. Gesture Sync Hook
+    // 5. Gesture Sync Hook: the earbuds report their gesture settings after connecting
     this.ear.onGestureUpdate = (payload) => {
-      console.log("Syncing Gestures...", payload);
-      // Existing logic...
-      // Map payload to savedGestures if it is array of objects
-      if (Array.isArray(payload)) {
-        this.savedGestures = {};
-        payload.forEach(g => {
-          if (!this.savedGestures[g.side]) this.savedGestures[g.side] = {};
-          this.savedGestures[g.side][g.type] = g.action;
-        });
-        this.saveState();
-      }
+      if (!Array.isArray(payload)) return;
+      const read = {};
+      payload.forEach(g => {
+        if (!read[g.side]) read[g.side] = {};
+        read[g.side][g.type] = g.action;
+      });
+      this.savedGestures = this.cleanGestures(read);
+      this.saveState();
+      if (!document.getElementById('gesture-modal').classList.contains('hidden')) this.renderGestures();
     };
 
     // 5. Navigation
@@ -314,16 +319,8 @@ const app = {
       });
     }
 
-    // 7. GESTURE MODAL INTERACTION
-    this.el.budCards.forEach(card => {
-      card.addEventListener('click', () => {
-        const side = card.dataset.side;
-        this.openGestureModal(side);
-      });
-    });
-
-    document.getElementById('close-modal').addEventListener('click', () => this.closeGestureModal());
-    document.getElementById('save-gestures').addEventListener('click', () => this.applyGestures());
+    // 7. Gestures window (dashboard earbuds and the Controls card open it)
+    this.setupGestures();
 
     // 8. Advanced EQ
     const simpleDiv = document.getElementById('eq-simple');
@@ -385,7 +382,9 @@ const app = {
     // Quick tiles, fit test, status pill, nav indicator
     this.setupTiles();
     this.setupFitTest();
+    this.setupFindBuds();
     this.setupUpdates();
+    this.setupNews();
     this.updateTiles();
     this.setLinkState('offline');
     this.setConnectUI('idle');
@@ -816,7 +815,7 @@ const app = {
       const s = JSON.parse(saved);
       // Merge into settings
       this.settings = { ...this.settings, ...s };
-      this.savedGestures = this.settings.gestures || {};
+      this.savedGestures = this.cleanGestures(this.settings.gestures);
 
       console.log("State Loaded:", this.settings);
 
@@ -1033,184 +1032,332 @@ const app = {
   },
 
   // --- GESTURES ---
-  openGestureModal(side) {
-    this.currentSide = side;
+  // Keep only settings this screen knows (older versions stored other codes)
+  cleanGestures(g) {
+    const out = { left: {}, right: {} };
+    for (const side of ['left', 'right']) {
+      for (const { type, actions } of GESTURES) {
+        const code = Number(g?.[side]?.[type]);
+        if (code && actions.includes(actionKey(code))) out[side][type] = code;
+      }
+    }
+    return out;
+  },
+
+  setupGestures() {
+    const modal = document.getElementById('gesture-modal');
+    const list = document.getElementById('gx-list');
+    document.getElementById('gx-buds').innerHTML = ['left', 'right'].map(side => `
+      <div class="gx-bud" data-side="${side}">
+        ${earbudSVG(side)}
+        <span class="gx-bud-label">${side === 'left' ? 'L' : 'R'}</span>
+      </div>`).join('');
+
+    this.el.budCards.forEach(card => card.addEventListener('click', () => this.openGestureModal(card.dataset.side)));
+    document.getElementById('gestures-open')?.addEventListener('click', () => this.openGestureModal());
+    document.getElementById('close-modal').addEventListener('click', () => this.closeGestureModal());
+    modal.addEventListener('click', (e) => { if (e.target === modal) this.closeGestureModal(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) this.closeGestureModal();
+    });
+
+    // One handler for every header, tile and chip in the list
+    list.addEventListener('click', (e) => this.onGestureClick(e));
+    list.addEventListener('mouseover', (e) => this.focusBud(e.target.closest('.gx-side')?.dataset.side || null));
+    list.addEventListener('mouseleave', () => this.focusBud(null));
+  },
+
+  canEditGestures() {
+    return this.ear.isConnected || this.linkState === 'demo';
+  },
+
+  renderGestures() {
+    // Preview mode fills in sample settings for anything not set yet
+    const values = this.savedGestures;
+    if (this.linkState === 'demo') {
+      for (const side of ['left', 'right']) {
+        for (const [type, code] of Object.entries(DEMO_GESTURES[side])) {
+          if (!(type in values[side])) values[side][type] = code;
+        }
+      }
+    }
+    const editable = this.canEditGestures();
+    const off = editable ? '' : 'disabled';
+    document.getElementById('gx-offline').hidden = editable;
+    const list = document.getElementById('gx-list');
+    list.classList.toggle('locked', !editable);
+
+    list.innerHTML = GESTURES.map(g => {
+      const open = g.type === this.openGestureType;
+      const current = { left: actionKey(values.left[g.type]), right: actionKey(values.right[g.type]) };
+
+      const sides = ['left', 'right'].map(side => `
+            <div class="gx-side" data-side="${side}">
+              <div class="gx-side-label"><span class="gx-dot ${side}"></span>${side === 'left' ? 'LEFT' : 'RIGHT'}</div>
+              <div class="gx-tiles">${g.actions.map(key => {
+                const on = key === current[side];
+                return `<button class="gx-tile${on ? ' on' : ''}" data-side="${side}" data-action="${key}" aria-pressed="${on}" ${off}>${svgIcon(ACTIONS[key].icon)}<span>${ACTIONS[key].label}</span></button>`;
+              }).join('')}</div>
+            </div>`).join('');
+
+      const summary = ['left', 'right'].map(side =>
+        `<span class="gx-sum"><b>${side === 'left' ? 'L' : 'R'}</b>${ACTIONS[current[side]]?.short || '—'}</span>`).join('');
+
+      // Noise control: which modes the gesture switches between (shared by both earbuds)
+      const noiseSide = ['left', 'right'].find(side => current[side] === 'noise');
+      const cycle = noiseSide ? NOISE_CYCLES[values[noiseSide][g.type]] : null;
+      const noise = cycle ? `
+            <div class="gx-noise">
+              <span class="gx-noise-label">NOISE CONTROL SWITCHES BETWEEN</span>
+              <div class="gx-chips">${NOISE_MODES.map((m, i) =>
+                `<button class="gx-chip${cycle[i] ? ' on' : ''}" data-mode="${i}" aria-pressed="${!!cycle[i]}" ${off}>${m}</button>`).join('')}</div>
+            </div>` : '';
+
+      return `
+        <div class="gx-item${open ? ' open' : ''}" data-type="${g.type}">
+          <button class="gx-item-head" aria-expanded="${open}">
+            <span class="gx-pattern" aria-hidden="true">${patternHTML(g.pattern)}</span>
+            <span class="gx-item-name">${g.name}</span>
+            <span class="gx-sums">${summary}</span>
+            <svg class="gx-chev" viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="gx-item-body"><div class="gx-item-inner">
+            <div class="gx-sides">${sides}</div>${noise}
+          </div></div>
+        </div>`;
+    }).join('');
+  },
+
+  onGestureClick(e) {
+    const head = e.target.closest('.gx-item-head');
+    if (head) {
+      const item = head.closest('.gx-item');
+      const opening = !item.classList.contains('open');
+      document.querySelectorAll('#gx-list .gx-item').forEach(el => {
+        const on = el === item && opening;
+        el.classList.toggle('open', on);
+        el.querySelector('.gx-item-head').setAttribute('aria-expanded', on);
+      });
+      this.openGestureType = opening ? Number(item.dataset.type) : null;
+      if (opening) this.showGesture(this.openGestureType);
+      return;
+    }
+    if (!this.canEditGestures()) return;
+    const type = Number(e.target.closest('.gx-item')?.dataset.type);
+    const tile = e.target.closest('.gx-tile');
+    if (tile) return this.setGestureAction(tile.dataset.side, type, tile.dataset.action);
+    const chip = e.target.closest('.gx-chip');
+    if (chip) return this.toggleNoiseMode(type, Number(chip.dataset.mode));
+  },
+
+  setGestureAction(side, type, key) {
+    const values = this.savedGestures;
+    let code = Number(key);
+    if (key === 'noise') {
+      // Same modes as the other earbud if it already uses noise control
+      const other = values[side === 'left' ? 'right' : 'left'][type];
+      code = NOISE_CYCLES[other] ? other : 10;
+    }
+    if (values[side][type] === code) return;
+    values[side][type] = code;
+    this.ear.setGesture(side, type, code);
+    this.saveState();
+    this.renderGestures();
+    const tile = document.querySelector(`#gx-list .gx-item[data-type="${type}"] .gx-tile[data-side="${side}"][data-action="${key}"]`);
+    tile?.classList.add('pop');
+  },
+
+  toggleNoiseMode(type, index) {
+    const values = this.savedGestures;
+    const sides = ['left', 'right'].filter(s => NOISE_CYCLES[values[s][type]]);
+    if (!sides.length) return;
+    const cycle = [...NOISE_CYCLES[values[sides[0]][type]]];
+    cycle[index] = cycle[index] ? 0 : 1;
+    if (cycle[0] + cycle[1] + cycle[2] < 2) {
+      this.toast('Noise control needs at least two modes');
+      return;
+    }
+    const code = noiseCode(cycle);
+    sides.forEach(s => {
+      values[s][type] = code;
+      this.ear.setGesture(s, type, code);
+    });
+    this.saveState();
+    this.renderGestures();
+  },
+
+  showGesture(type) {
+    const g = GESTURES.find(x => x.type === type) || GESTURES[0];
+    document.getElementById('gx-now-pattern').innerHTML = patternHTML(g.pattern);
+    document.getElementById('gx-now-name').textContent = g.name;
+    document.getElementById('gx-now-hint').textContent = g.hint;
+    this.playPinch(g.pattern);
+  },
+
+  // Dim the other earbud while one side's tiles are hovered
+  focusBud(side) {
+    document.querySelectorAll('#gx-buds .gx-bud').forEach(b => b.classList.toggle('dim', !!side && b.dataset.side !== side));
+  },
+
+  // Two fingertips squeeze the stem: 'p' = quick pinch, 'h' = pinch and hold. Loops while open.
+  playPinch(pattern) {
+    this.pinchTl?.kill();
+    const all = (sel) => [...document.querySelectorAll(`#gx-buds ${sel}`)];
+    const a = all('.eb-finger-a'), b = all('.eb-finger-b'), glow = all('.eb-glow'), ring = all('.eb-ring');
+    gsap.set([...a, ...b, ...glow, ...ring], { opacity: 0, x: 0, scale: 1, transformOrigin: '50% 50%' });
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      gsap.set([...a, ...b], { opacity: 1, x: (i, el) => el.classList.contains('eb-finger-a') ? 10 : -10 });
+      gsap.set(glow, { opacity: 0.8 });
+      return;
+    }
+
+    const tl = gsap.timeline({ repeat: -1, repeatDelay: 1 });
+    tl.to([...a, ...b], { opacity: 1, duration: 0.3 });
+    pattern.forEach((step, i) => {
+      const hold = step === 'h';
+      tl.to(a, { x: 12, duration: 0.13, ease: 'power2.in' })
+        .to(b, { x: -12, duration: 0.13, ease: 'power2.in' }, '<')
+        .to(glow, { opacity: 1, scale: hold ? 1.15 : 1, duration: 0.1 }, '>-0.03');
+      if (hold) {
+        tl.fromTo(ring, { opacity: 0.9, scale: 0.6 }, { opacity: 0, scale: 2, duration: 1, ease: 'power1.out' })
+          .to(glow, { opacity: 0.55, duration: 0.5, yoyo: true, repeat: 1, ease: 'sine.inOut' }, '<');
+      }
+      tl.to(a, { x: 0, duration: 0.15, ease: 'power2.out' })
+        .to(b, { x: 0, duration: 0.15, ease: 'power2.out' }, '<')
+        .to(glow, { opacity: 0, scale: 1, duration: 0.2 }, '<');
+      if (i < pattern.length - 1) tl.to({}, { duration: 0.06 });
+    });
+    tl.to([...a, ...b], { opacity: 0, duration: 0.35 }, '+=0.2');
+    this.pinchTl = tl;
+  },
+
+  openGestureModal(side = null) {
     const modal = document.getElementById('gesture-modal');
     const content = modal.querySelector('.modal-content');
-
-    // 1. Calculate Coordinates
-    const triggerBtn = document.querySelector(`.bud-card[data-side="${side}"]`);
-    const rect = triggerBtn.getBoundingClientRect();
-
-    // Store origin for closing
-    this.gestureOrigin = {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2
-    };
-
-    // Reset Modal
+    if (this.openGestureType === undefined) this.openGestureType = GESTURES[0].type;
+    this.renderGestures();
     modal.classList.remove('hidden');
-    document.getElementById('modal-title').innerText = `CONFIGURE ${(side || 'LEFT').toUpperCase()}`;
+    this.showGesture(this.openGestureType ?? GESTURES[0].type);
 
-    // Update Dot Color (Left=White/Black, Right=Red usually, but let's stick to theme)
-    // Actually Ear (a) uses Red (R) and White (L)
-    const dot = document.getElementById('side-dot');
-    if (dot) dot.setAttribute('fill', side === 'right' ? '#d92027' : '#fff');
+    // Point out the earbud that was tapped on the dashboard
+    clearTimeout(this.focusTimer);
+    this.focusBud(side);
+    if (side) this.focusTimer = setTimeout(() => this.focusBud(null), 1500);
 
-    // GSAP Expand (From Pill to Window)
+    // Grow the window out of whatever opened it
+    const trigger = side ? document.querySelector(`.bud-card[data-side="${side}"]`) : document.getElementById('gestures-open');
+    const r = trigger?.getBoundingClientRect();
+    this.gestureOrigin = r && r.width
+      ? { x: r.left + r.width / 2 - window.innerWidth / 2, y: r.top + r.height / 2 - window.innerHeight / 2 }
+      : { x: 0, y: 0 };
     gsap.fromTo(content,
-      {
-        transformOrigin: "center center",
-        scale: 0.1,
-        opacity: 0,
-        x: (this.gestureOrigin.x - window.innerWidth / 2),
-        y: (this.gestureOrigin.y - window.innerHeight / 2),
-        borderRadius: "50px" // Start as pill shape
-      },
-      {
-        scale: 1,
-        opacity: 1,
-        x: 0,
-        y: 0,
-        borderRadius: "12px", // Morph to card
-        duration: 0.6,
-        ease: "expo.out" // Very smooth expand
-      }
-    );
-
-    this.setupGestureAnimations();
-
-    // Load saved
-    const saved = this.savedGestures[side] || {};
-    document.getElementById('g-double').value = saved[2] || 0;
-    document.getElementById('g-triple').value = saved[3] || 0;
-    document.getElementById('g-hold').value = saved[4] || 0;
-    document.getElementById('g-doublehold').value = saved[5] || 0;
-
-    // Backdrop Click Listener (One-time)
-    this.backdropCloser = (e) => {
-      if (e.target === modal) this.closeGestureModal();
-    };
-    modal.addEventListener('click', this.backdropCloser);
+      { scale: 0.2, opacity: 0, x: this.gestureOrigin.x, y: this.gestureOrigin.y },
+      { scale: 1, opacity: 1, x: 0, y: 0, duration: 0.55, ease: 'expo.out' });
   },
 
   closeGestureModal() {
     const modal = document.getElementById('gesture-modal');
+    if (modal.classList.contains('hidden')) return;
     const content = modal.querySelector('.modal-content');
-
-    // Remove listener
-    if (this.backdropCloser) modal.removeEventListener('click', this.backdropCloser);
-
-    // Reverse Animation (Back to Pill)
     gsap.to(content, {
-      scale: 0.1,
-      opacity: 0,
-      x: (this.gestureOrigin.x - window.innerWidth / 2),
-      y: (this.gestureOrigin.y - window.innerHeight / 2),
-      borderRadius: "50px",
-      duration: 0.4,
-      ease: "power3.in",
+      scale: 0.2, opacity: 0, x: this.gestureOrigin?.x || 0, y: this.gestureOrigin?.y || 0,
+      duration: 0.35, ease: 'power3.in',
       onComplete: () => {
         modal.classList.add('hidden');
+        this.pinchTl?.pause();
       }
     });
   },
 
-  setupGestureAnimations() {
-    // Hover Listeners for Tutorial
-    const rows = document.querySelectorAll('.gesture-row');
-
-    rows.forEach(row => {
-      row.addEventListener('mouseenter', () => {
-        const type = row.dataset.anim;
-        this.playGestureAnim(type);
-        document.getElementById('gesture-instruction').innerText = row.querySelector('label').innerText + " ACTIONS";
-      });
+  // --- FIND MY EARBUDS ---
+  setupFindBuds() {
+    this.ringing = { left: false, right: false };
+    this.ringTimers = {};
+    document.querySelectorAll('.find-btn').forEach(btn =>
+      btn.addEventListener('click', () => this.toggleRing(btn.dataset.side)));
+    // Don't leave an earbud ringing when the app closes
+    window.addEventListener('beforeunload', () => {
+      ['left', 'right'].forEach(side => { if (this.ringing[side] && this.ear.isConnected) this.ear.ringBud(side, false); });
     });
   },
 
-  playGestureAnim(type) {
-    // Clear Previous
-    gsap.killTweensOf("#pinch-point");
-    gsap.killTweensOf("#finger-indicator");
-    gsap.set("#pinch-point", { opacity: 0 });
-    gsap.set("#finger-indicator", { opacity: 0, x: 20 });
-
-    const finger = "#finger-indicator";
-    const contact = "#pinch-point";
-
-    // Adjusted coordinates for new SVG
-    // SVG Y is 0-350. Stem is roughly 90,40 to 140,260.
-    // Pinch area around Y=110? No, Y=110 was in old one.
-    // New Stem Rect is y=40 h=220 -> Mid Y ~ 150.
-    // Let's target Y=120 for pinch.
-
-    const pinchY = 120; // Visual sweet spot on stem
-    gsap.set([finger, contact], { cy: pinchY });
-
-    if (type === 'double') {
-      const t = gsap.timeline();
-      t.to(finger, { opacity: 1, x: 0, duration: 0.2 })
-        .to(contact, { opacity: 1, scale: 1.5, duration: 0.1 }, "<")
-        .to(finger, { x: 10, duration: 0.1 })
-        .to(contact, { opacity: 0, duration: 0.1 }, "<")
-        .to(finger, { x: 0, duration: 0.1 })
-        .to(contact, { opacity: 1, scale: 1.5, duration: 0.1 }, "<")
-        .to(finger, { x: 20, opacity: 0, duration: 0.3, delay: 0.1 });
+  toggleRing(side) {
+    const on = !this.ringing[side];
+    if (on && !this.ear.isConnected && this.linkState !== 'demo') {
+      this.setFindMsg('Connect your earbuds first.');
+      return;
     }
-    else if (type === 'triple') {
-      const t = gsap.timeline();
-      for (let i = 0; i < 3; i++) {
-        t.to(finger, { opacity: 1, x: 0, duration: 0.15 })
-          .to(contact, { opacity: 1, scale: 1.2, duration: 0.05 }, "<")
-          .to(finger, { x: 10, duration: 0.1 })
-          .to(contact, { opacity: 0, duration: 0.05 }, "<");
-      }
-      t.to(finger, { x: 20, opacity: 0, duration: 0.3 });
-    }
-    else if (type === 'hold') {
-      const t = gsap.timeline();
-      t.to(finger, { opacity: 1, x: 0, duration: 0.3 })
-        .to(contact, { opacity: 1, scale: 2, duration: 0.3 }, "<")
-        .to(contact, { scale: 1.5, duration: 1, yoyo: true, repeat: 1 })
-        .to(finger, { x: 20, opacity: 0, duration: 0.4 });
-    }
-    else if (type === 'doublehold') {
-      // Two quick pinches, then hold
-      const t = gsap.timeline();
-      // First pinch
-      t.to(finger, { opacity: 1, x: 0, duration: 0.15 })
-        .to(contact, { opacity: 1, scale: 1.2, duration: 0.05 }, "<")
-        .to(finger, { x: 10, duration: 0.1 })
-        .to(contact, { opacity: 0, duration: 0.05 }, "<")
-        // Second pinch
-        .to(finger, { x: 0, duration: 0.1 })
-        .to(contact, { opacity: 1, scale: 1.2, duration: 0.05 }, "<")
-        // Hold sustained
-        .to(contact, { scale: 2, duration: 0.3 })
-        .to(contact, { scale: 1.5, duration: 0.8, yoyo: true, repeat: 1 })
-        // Release
-        .to(finger, { x: 20, opacity: 0, duration: 0.4 })
-        .to(contact, { opacity: 0, duration: 0.2 }, "<");
-    }
+    this.setRing(side, on);
   },
 
-  applyGestures() {
-    const side = this.currentSide;
-    const g2 = parseInt(document.getElementById('g-double').value);
-    const g3 = parseInt(document.getElementById('g-triple').value);
-    const g4 = parseInt(document.getElementById('g-hold').value);
-    const g5 = parseInt(document.getElementById('g-doublehold').value);
+  setRing(side, on, send = true) {
+    this.ringing[side] = on;
+    clearTimeout(this.ringTimers[side]);
+    if (send && this.ear.isConnected) this.ear.ringBud(side, on);
+    if (on) this.ringTimers[side] = setTimeout(() => this.setRing(side, false), 60000); // stops by itself after a minute
 
-    // Save To State
-    if (!this.savedGestures[side]) this.savedGestures[side] = {};
-    if (g2) { this.savedGestures[side][2] = g2; this.ear.setGesture(side, 2, g2); }
-    if (g3) { this.savedGestures[side][3] = g3; this.ear.setGesture(side, 3, g3); }
-    if (g4) { this.savedGestures[side][4] = g4; this.ear.setGesture(side, 4, g4); }
-    if (g5) { this.savedGestures[side][5] = g5; this.ear.setGesture(side, 5, g5); }
+    const btn = document.querySelector(`.find-btn[data-side="${side}"]`);
+    if (btn) {
+      btn.classList.toggle('ringing', on);
+      btn.setAttribute('aria-pressed', on);
+      btn.querySelector('.find-label').textContent = on ? 'STOP' : `RING ${side.toUpperCase()}`;
+    }
+    const any = this.ringing.left || this.ringing.right;
+    this.setFindMsg(!any ? '' : this.linkState === 'demo'
+      ? 'Preview mode: no sound plays.'
+      : 'Ringing… tap STOP once you’ve found it.');
+  },
 
-    this.saveState();
-    this.closeGestureModal();
+  setFindMsg(text) {
+    const el = document.getElementById('find-msg');
+    if (el) el.textContent = text;
+  },
+
+  // --- WHAT'S NEW ---
+  setupNews() {
+    const modal = document.getElementById('news-modal');
+    const close = () => modal.classList.add('hidden');
+    document.getElementById('news-open')?.addEventListener('click', () => this.openNews());
+    document.getElementById('news-close').addEventListener('click', close);
+    document.getElementById('news-ok').addEventListener('click', close);
+    modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) close();
+    });
+
+    // Open once after an update. A brand-new install has no saved settings yet, so it skips this.
+    let updated = false;
+    try {
+      const seen = localStorage.getItem('cmfx_seen_version');
+      updated = seen ? seen !== APP_VERSION : !!localStorage.getItem('nothing_ear_settings');
+      localStorage.setItem('cmfx_seen_version', APP_VERSION);
+    } catch { /* storage unavailable: just don't show it */ }
+    if (updated && CHANGELOG.some(v => v.version === APP_VERSION)) setTimeout(() => this.openNews(), 700);
+  },
+
+  openNews() {
+    if (!CHANGELOG.length) return;
+    const current = CHANGELOG.find(v => v.version === APP_VERSION) || CHANGELOG[0];
+    const older = CHANGELOG.slice(CHANGELOG.indexOf(current) + 1);
+    const sections = (v) => v.sections.map(s => `
+      <div class="news-section">
+        <h3>${s.title.toUpperCase()}</h3>
+        <ul>${s.items.map(i => `<li>${i}</li>`).join('')}</ul>
+      </div>`).join('');
+
+    document.getElementById('news-title').textContent = `VERSION ${current.version}`;
+    document.getElementById('news-date').textContent = current.date;
+    document.getElementById('news-body').innerHTML = sections(current);
+    const olderEl = document.getElementById('news-older');
+    olderEl.hidden = !older.length;
+    olderEl.open = false;
+    document.getElementById('news-older-body').innerHTML = older.map(v => `
+      <div class="news-old">
+        <div class="news-old-head">${v.version}<span>${v.date}</span></div>
+        ${sections(v)}
+      </div>`).join('');
+    document.getElementById('news-modal').classList.remove('hidden');
+    document.querySelector('#news-modal .news-dialog').scrollTop = 0;
   }
 };
 

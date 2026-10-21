@@ -19,12 +19,15 @@
 - **Noise control** — noise cancellation (high / mid / low / adaptive), transparency, off
 - **Equalizer** — presets plus an advanced mode
 - **Bass enhance**, **low latency mode**, **in-ear detection**
-- **Gestures** — set what each pinch does, per earbud
+- **Gestures** — both earbuds on one screen: pick what each pinch does from icon tiles, with an animated earbud showing the gesture
 - **Themes** — seven accent colours
 - **Live status** — shows when the earbuds disconnect, tap to reconnect
 - **Ear tip fit test** — checks that each ear tip seals well
+- **Find my earbuds** — make the left or right earbud chirp so you can find it
 - **Automatic updates** — new versions install themselves on Windows
 - **Preview mode** — try the app without earbuds
+
+What changed in each version: see the **[changelog](CHANGELOG.md)** (the app also shows it after each update).
 
 ## Install
 
