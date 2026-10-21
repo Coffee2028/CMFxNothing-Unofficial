@@ -76,6 +76,9 @@ jobs:
         id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
 
+      - name: Write release notes
+        run: node scripts/release-notes.mjs "${{ steps.version.outputs.version }}" > notes.md
+
       - uses: actions/download-artifact@v8
         with:
           path: dist
@@ -89,24 +92,5 @@ jobs:
           overwrite_files: true
           fail_on_unmatched_files: true
           files: dist/*
-          body: |
-            Unofficial, community-made app for Nothing and CMF earbuds. Not affiliated with Nothing Technology.
-            Already installed? The app updates itself on Windows and tells you about new versions on Mac.
-
-            ### Windows
-            1. Download **CMFxNothing-Setup-${{ steps.version.outputs.version }}.exe** and run it.
-            2. If Windows shows *"Windows protected your PC"*, click **More info → Run anyway** (the app isn't code-signed).
-            3. From then on the app updates itself and keeps your settings.
-
-            ### Mac
-            1. Download the right file:
-               - **Apple Silicon** (M1, M2, M3, M4…): `CMFxNothing-${{ steps.version.outputs.version }}-mac-arm64.dmg`
-               - **Intel Mac**: `CMFxNothing-${{ steps.version.outputs.version }}-mac-x64.dmg`
-               - Not sure? Apple menu → About This Mac: "Chip: Apple…" means Apple Silicon.
-            2. Open the .dmg and drag **CMFxNothing (Unofficial)** into **Applications**.
-            3. The first time, macOS says it can't verify the app (it isn't notarized by Apple). Click **Done**, then open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
-            4. Allow Bluetooth when asked.
-            5. If macOS ever says the app *"is damaged"*, open Terminal and run: `xattr -cr "/Applications/CMFxNothing (Unofficial).app"`
-
-            ### Connecting
-            Pair your earbuds in your computer's Bluetooth settings first, take them out of the case, then click **Initialize Link**.
+          # Notes = this version's CHANGELOG.md section + install steps (scripts/release-notes.mjs)
+          body_path: notes.md
