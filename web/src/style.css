@@ -2361,3 +2361,95 @@ body.theme-gold #connectBtn:hover { box-shadow: 0 0 20px rgba(255,215,0,0.6); }
   .find-btn.ringing .find-side, .find-btn.ringing .find-waves i { animation: none; }
   .find-btn.ringing .find-waves i:first-child { opacity: 0.6; transform: scale(1.6); }
 }
+
+/* ===================== WELCOME + GUIDED TOUR ===================== */
+.welcome-dialog { width: min(460px, calc(100% - 32px)); text-align: center; }
+.welcome-text { margin: 14px auto 0; max-width: 40ch; font-size: 13.5px; line-height: 1.65; color: #aaa; }
+.welcome-actions { display: flex; gap: 10px; margin-top: 26px; }
+.welcome-actions .btn { flex: 1; padding: 14px 0; }
+.welcome-note { margin: 16px 0 0; font-family: var(--font-tech); font-size: 10px; letter-spacing: 1px; color: #555; }
+
+.tour { position: fixed; inset: 0; z-index: 2600; }
+.tour.hidden { display: none; }
+
+/* The darkened page with a clear "window" over the highlighted part */
+.tour-hole {
+  position: fixed;
+  border-radius: 18px;
+  box-shadow: 0 0 0 200vmax rgba(0, 0, 0, 0.74);
+  outline: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  outline-offset: 0;
+  pointer-events: none;
+  transition: left 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.45s cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), height 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s;
+}
+
+.tour-hole::after { /* soft pulse around the highlight */
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: tour-pulse 2.2s ease-out infinite;
+}
+
+.tour-hole.none { left: 50% !important; top: 50% !important; width: 0 !important; height: 0 !important; outline-color: transparent; }
+.tour-hole.none::after { display: none; }
+
+@keyframes tour-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 14px color-mix(in srgb, var(--accent) 0%, transparent); }
+}
+
+.tour-card {
+  position: fixed;
+  width: min(360px, calc(100vw - 32px));
+  padding: 20px 20px 18px;
+  border: 1px solid #2e2e2e;
+  border-radius: 16px;
+  background: rgba(12, 12, 12, 0.97);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  transition: left 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s;
+}
+
+.tour-card.moving { opacity: 0; }
+
+.tour-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; min-height: 18px; }
+.tour-count { font-family: var(--font-tech); font-size: 10px; letter-spacing: 2px; color: var(--accent); }
+
+.tour-skip {
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: #777;
+  font-family: var(--font-tech);
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+}
+
+.tour-skip:hover { color: #fff; }
+
+.tour-title {
+  margin: 0 0 8px;
+  font-family: var(--font-dot);
+  font-weight: 600;
+  font-size: 19px;
+  letter-spacing: 2.5px;
+  color: #fff;
+}
+
+.tour-text { margin: 0; font-size: 13px; line-height: 1.6; color: #b5b5b5; }
+
+.tour-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+.tour-dots { display: flex; gap: 5px; flex-wrap: wrap; }
+.tour-dots i { width: 5px; height: 5px; border-radius: 50%; background: #333; transition: background 0.3s, width 0.3s; }
+.tour-top[hidden], .tour-dots[hidden] { display: none; }
+.tour-dots i.on { width: 14px; border-radius: 3px; background: var(--accent); }
+.tour-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.tour-actions .btn.mini { padding: 10px 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole, .tour-card { transition: none; }
+  .tour-hole::after { animation: none; }
+}

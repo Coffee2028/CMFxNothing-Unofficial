@@ -303,6 +303,10 @@
                     <label class="muted">FIRMWARE: <span id="fw-ver">--</span></label>
                 </div>
                 <div class="setting-item">
+                    <label>TUTORIAL</label>
+                    <button class="btn mini help-btn" id="tour-replay">TAKE THE TOUR</button>
+                </div>
+                <div class="setting-item">
                     <label>WHAT’S NEW</label>
                     <button class="btn mini help-btn" id="news-open">SEE CHANGES</button>
                 </div>
@@ -410,6 +414,37 @@
                 <div id="news-older-body"></div>
             </details>
             <button class="btn active news-ok" id="news-ok">GOT IT</button>
+        </div>
+    </div>
+
+    <!-- FIRST LAUNCH: offer the tour -->
+    <div id="welcome-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+        <div class="modal-content news-dialog welcome-dialog">
+            <div class="news-kicker">WELCOME</div>
+            <h2 class="news-title" id="welcome-title">NEW HERE?</h2>
+            <p class="welcome-text">Take a one-minute tour of CMFxNothing. No earbuds needed: it runs in preview mode, so you can look around before you connect anything.</p>
+            <div class="welcome-actions">
+                <button class="btn active" id="welcome-start">START TOUR</button>
+                <button class="btn" id="welcome-skip">SKIP</button>
+            </div>
+            <p class="welcome-note">You can start the tour any time from Settings.</p>
+        </div>
+    </div>
+
+    <!-- GUIDED TOUR: a spotlight on the real screens with a tip card -->
+    <div id="tour" class="tour hidden" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+        <div class="tour-hole" id="tour-hole"></div>
+        <div class="tour-card" id="tour-card">
+            <div class="tour-top">
+                <span class="tour-count" id="tour-count"></span>
+                <button class="tour-skip" id="tour-skip">SKIP TOUR</button>
+            </div>
+            <h3 class="tour-title" id="tour-title"></h3>
+            <p class="tour-text" id="tour-text"></p>
+            <div class="tour-bottom">
+                <div class="tour-dots" id="tour-dots" aria-hidden="true"></div>
+                <div class="tour-actions" id="tour-actions"></div>
+            </div>
         </div>
     </div>
 

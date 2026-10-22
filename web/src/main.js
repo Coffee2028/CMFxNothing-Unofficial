@@ -28,6 +28,8 @@ const app = {
   },
 
   init() {
+    // Has this app been used before? (decides the welcome tour and the What's new window)
+    try { this.hadSettings = !!localStorage.getItem('nothing_ear_settings'); } catch { this.hadSettings = true; }
     this.cacheDOM();
     this.fizz = new FizzBattery(document.querySelector('.buds-container'));
     this.loadState(); // Restore previous session
@@ -385,6 +387,7 @@ const app = {
     this.setupFindBuds();
     this.setupUpdates();
     this.setupNews();
+    this.setupTour();
     this.updateTiles();
     this.setLinkState('offline');
     this.setConnectUI('idle');
@@ -779,6 +782,7 @@ const app = {
   },
 
   setPage(id) {
+    this.currentPage = id;
     this.el.navBtns.forEach(b => b.classList.toggle('active', b.dataset.target === id));
     this.el.pages.forEach(p => p.classList.toggle('active', p.id === id));
     this.moveNavIndicator();
@@ -1329,7 +1333,7 @@ const app = {
     let updated = false;
     try {
       const seen = localStorage.getItem('cmfx_seen_version');
-      updated = seen ? seen !== APP_VERSION : !!localStorage.getItem('nothing_ear_settings');
+      updated = seen ? seen !== APP_VERSION : this.hadSettings;
       localStorage.setItem('cmfx_seen_version', APP_VERSION);
     } catch { /* storage unavailable: just don't show it */ }
     if (updated && CHANGELOG.some(v => v.version === APP_VERSION)) setTimeout(() => this.openNews(), 700);
@@ -1358,6 +1362,177 @@ const app = {
       </div>`).join('');
     document.getElementById('news-modal').classList.remove('hidden');
     document.querySelector('#news-modal .news-dialog').scrollTop = 0;
+  },
+  // --- TOUR ---
+  // First launch: offer a short guided tour. It runs on the real screens (in preview
+  // mode when no earbuds are connected) and can be replayed from Settings.
+  setupTour() {
+    const welcome = document.getElementById('welcome-modal');
+    document.getElementById('welcome-start').addEventListener('click', () => {
+      welcome.classList.add('hidden');
+      this.startTour();
+    });
+    document.getElementById('welcome-skip').addEventListener('click', () => welcome.classList.add('hidden'));
+    document.getElementById('tour-replay')?.addEventListener('click', () => this.startTour());
+    document.getElementById('tour-skip').addEventListener('click', () => this.endTour());
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !welcome.classList.contains('hidden')) welcome.classList.add('hidden');
+      if (!this.tourOn) return;
+      if (e.key === 'Escape') this.endTour();
+      else if (e.key === 'ArrowRight') this.tourGo(this.tourIndex + 1);
+      else if (e.key === 'ArrowLeft') this.tourGo(this.tourIndex - 1);
+    });
+    window.addEventListener('resize', () => { if (this.tourOn) this.placeTour(); });
+
+    // Only on the very first launch: no saved settings and no tour seen yet
+    let first = false;
+    try {
+      first = !localStorage.getItem('cmfx_tour_seen') && !this.hadSettings;
+      localStorage.setItem('cmfx_tour_seen', '1');
+    } catch { /* storage unavailable: don't nag */ }
+    if (first) setTimeout(() => welcome.classList.remove('hidden'), 1500);
+  },
+
+  tourSteps() {
+    const card = (sel) => () => document.querySelector(sel)?.closest('.card');
+    return [
+      { page: 'dashboard', target: () => document.querySelector('.buds-container'), title: 'BATTERY',
+        text: 'Live battery for each earbud, shown as a fizzy drink that bubbles faster while charging. The case battery is just below. Tap an earbud to change its gestures.' },
+      { page: 'dashboard', target: () => document.querySelector('.quick-tiles'), title: 'QUICK TILES',
+        text: 'Switch noise control, EQ and game mode with one tap.' },
+      { page: 'dashboard', target: () => document.getElementById('link-status'), title: 'CONNECTION',
+        text: 'Shows LIVE while your earbuds are connected. If they drop, it says OFFLINE: tap it to reconnect.' },
+      { page: 'dashboard', target: () => document.querySelector('nav .menu'), title: 'PAGES',
+        text: 'Everything else lives on the Controls, Equalizer and Settings pages.' },
+      { page: 'controls', target: card('#anc-group'), title: 'NOISE CONTROL',
+        text: 'Noise cancellation (with intensity), transparency or off. Bass enhance and the ear tip fit test are on this page too.' },
+      { page: 'controls', target: card('#gestures-open'), title: 'GESTURES',
+        text: 'Choose what double pinch, triple pinch and pinch & hold do on each earbud.' },
+      { page: 'controls', target: () => document.querySelector('.find-card'), title: 'FIND MY EARBUDS',
+        text: 'Lost one? Make it chirp until you find it. Take them out of your ears first: it’s loud.' },
+      { page: 'eq', target: () => document.querySelector('#eq .card'), title: 'EQUALIZER',
+        text: 'Pick a sound preset, or switch to advanced to set bass, mid and treble yourself.' },
+      { page: 'settings', target: () => document.getElementById('theme-dropdown')?.closest('.setting-item'), title: 'MAKE IT YOURS',
+        text: 'Themes and battery styles are in Settings, along with updates, What’s new and this tour.' },
+      { final: true, title: 'YOU’RE ALL SET',
+        text: 'That’s the tour. Pair your earbuds in your computer’s Bluetooth settings, take them out of the case, then connect.' }
+    ];
+  },
+
+  startTour() {
+    this.closeGestureModal();
+    document.querySelectorAll('.modal:not(.hidden)').forEach(m => m.classList.add('hidden'));
+    // No earbuds connected: look around with preview data
+    if (!this.ear.isConnected && this.linkState !== 'demo') {
+      this.startDemo();
+      this.tourStartedDemo = true;
+    }
+    this.steps = this.tourSteps();
+    this.tourOn = true;
+    const tour = document.getElementById('tour');
+    tour.classList.remove('hidden');
+    document.getElementById('tour-dots').innerHTML = this.steps.map(() => '<i></i>').join('');
+    this.tourGo(0);
+  },
+
+  async tourGo(i) {
+    if (!this.tourOn || i < 0 || i >= this.steps.length) return;
+    this.tourIndex = i;
+    const step = this.steps[i];
+    const card = document.getElementById('tour-card');
+    card.classList.add('moving');
+
+    const switching = step.page && step.page !== this.currentPage;
+    if (switching) this.setPage(step.page);
+    const target = step.target?.();
+    if (target) {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      await new Promise(r => setTimeout(r, switching ? 700 : 400)); // let the page slide in and scroll settle
+    }
+    if (this.tourIndex !== i) return; // clicked on quickly
+
+    document.getElementById('tour-count').textContent = step.final ? '' : `${i + 1} / ${this.steps.length - 1}`;
+    document.getElementById('tour-title').textContent = step.title;
+    document.getElementById('tour-text').textContent = step.text;
+    document.querySelector('#tour .tour-top').hidden = !!step.final;
+    document.getElementById('tour-dots').hidden = !!step.final;
+    document.querySelectorAll('#tour-dots i').forEach((dot, n) => dot.classList.toggle('on', n === i));
+
+    const actions = document.getElementById('tour-actions');
+    if (!step.final) {
+      actions.innerHTML = `${i > 0 ? '<button class="btn mini" data-go="back">BACK</button>' : ''}
+        <button class="btn mini active" data-go="next">${i === this.steps.length - 2 ? 'FINISH' : 'NEXT'}</button>`;
+    } else if (this.ear.isConnected) {
+      actions.innerHTML = '<button class="btn mini active" data-go="done">DONE</button>';
+    } else {
+      actions.innerHTML = `<button class="btn mini" data-go="done">KEEP PREVIEWING</button>
+        <button class="btn mini active" data-go="connect">CONNECT EARBUDS</button>`;
+    }
+    actions.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+      const go = b.dataset.go;
+      if (go === 'next') this.tourGo(i + 1);
+      else if (go === 'back') this.tourGo(i - 1);
+      else if (go === 'connect') this.endTour(true);
+      else this.endTour();
+    }));
+
+    this.tourTarget = target || null;
+    this.placeTour();
+    card.classList.remove('moving');
+    actions.querySelector('.active')?.focus({ preventScroll: true });
+  },
+
+  // Spotlight around the target, tip card next to it (centred when there's no target)
+  placeTour() {
+    const hole = document.getElementById('tour-hole');
+    const card = document.getElementById('tour-card');
+    const pad = 10, gap = 16, edge = 16;
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const cw = card.offsetWidth, ch = card.offsetHeight;
+    const t = this.tourTarget?.getBoundingClientRect();
+
+    if (!t || !t.width) {
+      hole.classList.add('none');
+      card.style.left = `${(vw - cw) / 2}px`;
+      card.style.top = `${(vh - ch) / 2}px`;
+      return;
+    }
+    const r = {
+      left: Math.max(edge / 2, t.left - pad), top: Math.max(edge / 2, t.top - pad),
+      right: Math.min(vw - edge / 2, t.right + pad), bottom: Math.min(vh - edge / 2, t.bottom + pad)
+    };
+    hole.classList.remove('none');
+    Object.assign(hole.style, {
+      left: `${r.left}px`, top: `${r.top}px`,
+      width: `${r.right - r.left}px`, height: `${r.bottom - r.top}px`
+    });
+
+    const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+    let left = clamp((r.left + r.right) / 2 - cw / 2, edge, vw - cw - edge);
+    let top;
+    if (r.bottom + gap + ch <= vh - edge) top = r.bottom + gap;            // below
+    else if (r.top - gap - ch >= edge) top = r.top - gap - ch;             // above
+    else {                                                                 // beside, or over the bottom edge
+      top = clamp((r.top + r.bottom) / 2 - ch / 2, edge, vh - ch - edge);
+      if (r.right + gap + cw <= vw - edge) left = r.right + gap;
+      else if (r.left - gap - cw >= edge) left = r.left - gap - cw;
+      else top = vh - ch - edge;
+    }
+    card.style.left = `${left}px`;
+    card.style.top = `${top}px`;
+  },
+
+  endTour(connect = false) {
+    this.tourOn = false;
+    document.getElementById('tour').classList.add('hidden');
+    if (connect) {
+      // Back to the start screen without the preview data, ready for "Initialize link"
+      location.reload();
+      return;
+    }
+    if (this.tourStartedDemo) this.setPage('dashboard');
+    this.tourStartedDemo = false;
   }
 };
 

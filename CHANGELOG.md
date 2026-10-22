@@ -3,6 +3,11 @@
 What changed in each version of CMFxNothing (Unofficial). The app shows the newest entry
 the first time it opens after an update, and each GitHub release uses the matching section.
 
+## 1.0.5 — 2026-10-22
+
+### New
+- **Welcome tour**: the first time you open the app, it offers a one-minute guided tour of every screen. It runs in preview mode, so you can look around without earbuds. Skip it if you like, and take it any time from Settings → Tutorial.
+
 ## 1.0.4 — 2026-10-20
 
 ### New

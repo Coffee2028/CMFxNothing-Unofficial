@@ -25,7 +25,7 @@
 - **Ear tip fit test** — checks that each ear tip seals well
 - **Find my earbuds** — make the left or right earbud chirp so you can find it
 - **Automatic updates** — new versions install themselves on Windows
-- **Preview mode** — try the app without earbuds
+- **Preview mode and welcome tour** — try the app without earbuds; first-time users get a short guided tour (skippable, replay it from Settings)
 
 What changed in each version: see the **[changelog](CHANGELOG.md)** (the app also shows it after each update).
 
