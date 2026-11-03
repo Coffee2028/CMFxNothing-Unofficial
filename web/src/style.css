@@ -486,7 +486,7 @@ input[type=range] {
   background: transparent;
 }
 
-input[type=range]::-webkit-slider-track {
+input[type=range]::-webkit-slider-runnable-track {
   width: 100%;
   height: 2px;
   background: #333;
@@ -1379,6 +1379,8 @@ body.theme-gold #connectBtn:hover { box-shadow: 0 0 20px rgba(255,215,0,0.6); }
 .mode-link.active { background: var(--accent); color: #fff; }
 
 .advanced-controls { flex-direction: column; gap: 15px; }
+.adv-slider label { display: flex; justify-content: space-between; align-items: baseline; }
+.adv-val { color: #888; font-family: var(--font-tech); }
 
 /* ----- Start screen ----- */
 #overlay { overflow: hidden; }

@@ -3,6 +3,13 @@
 What changed in each version of CMFxNothing (Unofficial). The app shows the newest entry
 the first time it opens after an update, and each GitHub release uses the matching section.
 
+## 1.0.6 — 2026-11-03
+
+### Fixed
+- **EQ presets** sent the wrong numbers to the earbuds: Balanced gave you Voice, More Bass and More Treble were swapped, and Voice didn't work. Each preset now does what it says.
+- **Advanced EQ** sliders didn't change the sound at all. They now set a real custom EQ on the earbuds: bass, mids and treble from -6 to +6 dB, like in the Nothing X app. Each slider shows its value, and its track is visible again.
+- After connecting, the Equalizer page shows the EQ the earbuds are actually using.
+
 ## 1.0.5 — 2026-10-22
 
 ### New

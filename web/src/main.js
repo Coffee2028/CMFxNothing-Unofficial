@@ -1,4 +1,4 @@
-import { ConnectionManager } from './connection.js'
+import { ConnectionManager, clampEQ } from './connection.js'
 import { gsap } from 'gsap' // Bundled locally (was loaded from a CDN, which broke offline)
 import { FizzBattery, BATTERY_STYLES } from './fizz.js'
 import { GESTURES, ACTIONS, NOISE_CYCLES, NOISE_MODES, DEMO_GESTURES, actionKey, noiseCode, svgIcon } from './gestures.js'
@@ -19,7 +19,7 @@ const app = {
     ancMode: 5, // Off
     eqId: 1, // Balanced
     eqMode: 'simple', // 'simple' or 'advanced'
-    eqCustom: { bass: 50, mid: 50, treble: 50 },
+    eqCustom: { bass: 0, mid: 0, treble: 0 }, // custom EQ in dB (-6 to +6)
     bass: { enabled: false, level: 3 },
     lowLatency: false,
     inEar: true,
@@ -92,18 +92,24 @@ const app = {
       }
     };
 
-    this.ear.onEQUpdate = (eqId) => {
-      console.log("Sync EQ:", eqId);
-
-      this.settings.eqId = eqId;
-      this.saveState();
-
-      const btn = document.querySelector(`.btn[data-eq="${eqId}"]`);
-      if (btn) {
-        const group = btn.closest('.btn-group');
-        if (group) this.setActive(group, btn);
+    // The earbuds tell us which EQ they use: a preset (1-4) or 'custom'
+    this.ear.onEQUpdate = (eq) => {
+      console.log("Sync EQ:", eq);
+      if (eq === 'custom') {
+        this.setEQMode('advanced', false);
+        return;
       }
-      this.updateEQViz(eqId);
+      this.settings.eqId = eq;
+      const btn = document.querySelector(`#eq-simple .btn[data-eq="${eq}"]`);
+      if (btn) this.setActive(btn.parentElement, btn);
+      this.setEQMode('simple', false);
+    };
+
+    // ...and the custom EQ values saved on them
+    this.ear.onCustomEQUpdate = (values) => {
+      this.settings.eqCustom = values;
+      this.saveState();
+      this.showCustomEQ(values);
     };
 
     this.ear.onBassUpdate = (enabled, level) => {
@@ -324,58 +330,29 @@ const app = {
     // 7. Gestures window (dashboard earbuds and the Controls card open it)
     this.setupGestures();
 
-    // 8. Advanced EQ
-    const simpleDiv = document.getElementById('eq-simple');
-    const advDiv = document.getElementById('eq-advanced');
-    const modeSimple = document.getElementById('mode-simple');
-    const modeAdv = document.getElementById('mode-advanced');
+    // 8. EQ: presets or custom (advanced)
+    document.getElementById('mode-simple')?.addEventListener('click', () => this.setEQMode('simple'));
+    document.getElementById('mode-advanced')?.addEventListener('click', () => this.setEQMode('advanced'));
 
-    const switchEQMode = (mode) => {
-      this.settings.eqMode = mode;
-      this.saveState();
-
-      if (mode === 'simple') {
-        simpleDiv.style.display = 'grid';
-        advDiv.style.display = 'none';
-        modeSimple.classList.add('active');
-        modeAdv.classList.remove('active');
-        // Send Preset Command
-        this.ear.setEQ(this.settings.eqId);
-        this.updateEQViz(this.settings.eqId);
-      } else {
-        simpleDiv.style.display = 'none';
-        advDiv.style.display = 'flex';
-        modeAdv.classList.add('active');
-        modeSimple.classList.remove('active');
-        // Send Custom Command (TODO)
-        this.updateEQParametric(
-          this.settings.eqCustom.bass,
-          this.settings.eqCustom.mid,
-          this.settings.eqCustom.treble
-        );
-      }
-    };
-
-    if (modeSimple && modeAdv) {
-      modeSimple.addEventListener('click', () => switchEQMode('simple'));
-      modeAdv.addEventListener('click', () => switchEQMode('advanced'));
-    }
-
-    // 9. Parametric Sliders
+    // 9. Custom EQ sliders (-6 to +6 dB). The picture follows while dragging;
+    // the earbuds get the new values when the slider is let go.
+    const readSliders = () => ({
+      bass: parseInt(document.getElementById('adv-bass').value),
+      mid: parseInt(document.getElementById('adv-mid').value),
+      treble: parseInt(document.getElementById('adv-treble').value),
+    });
     ['adv-bass', 'adv-mid', 'adv-treble'].forEach(id => {
       const el = document.getElementById(id);
-      if (el) {
-        el.addEventListener('input', () => {
-          const b = parseInt(document.getElementById('adv-bass').value);
-          const m = parseInt(document.getElementById('adv-mid').value);
-          const t = parseInt(document.getElementById('adv-treble').value);
-
-          this.settings.eqCustom = { bass: b, mid: m, treble: t };
-          this.saveState();
-
-          this.updateEQParametric(b, m, t);
-        });
-      }
+      if (!el) return;
+      el.addEventListener('input', () => {
+        this.settings.eqCustom = readSliders();
+        this.showCustomEQ(this.settings.eqCustom);
+      });
+      el.addEventListener('change', () => {
+        this.settings.eqCustom = readSliders();
+        this.saveState();
+        this.ear.setCustomEQ(this.settings.eqCustom);
+      });
     });
 
     this.loadState();
@@ -730,6 +707,52 @@ const app = {
     if (cPct) cPct.innerText = d.c + "%";
   },
 
+  // Shows presets or custom EQ. send = false only changes the screen, e.g. when the
+  // earbuds tell us which EQ they use or when the app opens.
+  setEQMode(mode, send = true) {
+    const simple = mode !== 'advanced';
+    this.settings.eqMode = simple ? 'simple' : 'advanced';
+    this.saveState();
+    const simpleDiv = document.getElementById('eq-simple');
+    const advDiv = document.getElementById('eq-advanced');
+    if (simpleDiv) simpleDiv.style.display = simple ? 'grid' : 'none';
+    if (advDiv) advDiv.style.display = simple ? 'none' : 'flex';
+    document.getElementById('mode-simple')?.classList.toggle('active', simple);
+    document.getElementById('mode-advanced')?.classList.toggle('active', !simple);
+
+    if (simple) {
+      if (send) this.ear.setEQ(this.settings.eqId);
+      this.updateEQViz(this.settings.eqId);
+    } else {
+      if (send) this.ear.setCustomEQ(this.settings.eqCustom);
+      const { bass, mid, treble } = this.settings.eqCustom;
+      this.updateEQParametric(bass, mid, treble);
+    }
+    this.updateTiles();
+  },
+
+  // Puts custom EQ values on the sliders and their dB labels
+  showCustomEQ({ bass, mid, treble }) {
+    const show = (id, value) => {
+      const slider = document.getElementById(id);
+      if (slider) slider.value = value;
+      const label = document.getElementById(id + '-val');
+      if (label) label.textContent = `${value > 0 ? '+' : ''}${value} dB`;
+    };
+    show('adv-bass', bass);
+    show('adv-mid', mid);
+    show('adv-treble', treble);
+    if (this.settings.eqMode === 'advanced') this.updateEQParametric(bass, mid, treble);
+  },
+
+  // Custom EQ is saved in dB (-6 to +6). Versions before 1.0.6 saved 0-100 with 50 as flat.
+  normalizeCustomEQ(c) {
+    const vals = [c?.bass, c?.mid, c?.treble].map(Number);
+    const oldScale = vals.some(v => v > 6 || v < -6);
+    const fix = v => clampEQ(oldScale ? (v - 50) / 50 * 6 : v);
+    return { bass: fix(vals[0]), mid: fix(vals[1]), treble: fix(vals[2]) };
+  },
+
   updateEQViz(mode) {
     // Smoother Blob System
     const paths = {
@@ -757,10 +780,11 @@ const app = {
     });
   },
 
+  // Custom EQ in dB (-6 to +6) bends the blob
   updateEQParametric(bass, mid, treble) {
-    const bFac = (bass - 50) * 1.5;
-    const mFac = (mid - 50) * 1.5;
-    const tFac = (treble - 50) * 1.5;
+    const bFac = bass * 12.5;
+    const mFac = mid * 12.5;
+    const tFac = treble * 12.5;
 
     const pTop = `100,${25 - mFac}`;
     const pBotLeft = `${30 - bFac},${170 + bFac}`;
@@ -844,24 +868,10 @@ const app = {
       const eqBtn = document.querySelector(`.btn[data-eq="${eqId}"]`);
       if (eqBtn) this.setActive(eqBtn.parentElement, eqBtn);
 
-      // Restore Custom Values
-      if (this.settings.eqCustom) {
-        const { bass, mid, treble } = this.settings.eqCustom;
-        const setSl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-        setSl('adv-bass', bass);
-        setSl('adv-mid', mid);
-        setSl('adv-treble', treble);
-      }
-
-      // Restore Mode View
-      if (this.settings.eqMode === 'advanced') {
-        document.getElementById('mode-advanced')?.click();
-      } else {
-        document.getElementById('mode-simple')?.click();
-      }
-
-      // If we are in simple mode, this click() above triggered updateEQViz(id).
-      // If advanced, it triggered updateEQParametric().
+      // Custom EQ values and which EQ view was open (screen only, nothing is sent)
+      this.settings.eqCustom = this.normalizeCustomEQ(this.settings.eqCustom);
+      this.showCustomEQ(this.settings.eqCustom);
+      this.setEQMode(this.settings.eqMode === 'advanced' ? 'advanced' : 'simple', false);
 
 
       // 3. Bass

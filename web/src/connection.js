@@ -18,6 +18,57 @@ const CMD_FIT_TEST_RESULT = 0xE00D; // 57357
 // Find my earbuds (ring one earbud)
 const CMD_RING = 0xF002; // 61442
 
+// EQ. The app numbers the presets 1 to 4 (Balanced, More Bass, More Treble, Voice),
+// but the earbuds use their own numbers (checked against ear (web) for Nothing Ear
+// and Ear (a)): 0 = Balanced, 1 = Voice, 2 = More Treble, 3 = More Bass, 5 = Custom.
+const CMD_EQ_SET = 0xF010;        // 61456
+const CMD_EQ_GET = 0xC01F;        // 49183
+const CMD_EQ_RES = 0x401F;        // 16415
+const EQ_TO_WIRE = { 1: 0x00, 2: 0x03, 3: 0x02, 4: 0x01 };
+const WIRE_TO_EQ = { 0x00: 1, 0x03: 2, 0x02: 3, 0x01: 4 };
+const EQ_CUSTOM_WIRE = 0x05;
+
+// Custom EQ: three filters with the same frequencies and Q the official app uses
+// for Nothing Ear and Ear (a). Gains go from -6 to +6 dB.
+const CMD_CUSTOM_EQ_SET = 0xF041; // 61505
+const CMD_CUSTOM_EQ_GET = 0xC044; // 49220
+const CMD_CUSTOM_EQ_RES = 0x4044; // 16452
+const LOW_SHELF = 0, PEAK = 1, HIGH_SHELF = 2;
+const CUSTOM_EQ_FILTERS = {
+    bass: { type: LOW_SHELF, freq: 140, q: 0.8 },
+    mid: { type: PEAK, freq: 980, q: 0.7 },
+    treble: { type: HIGH_SHELF, freq: 3400, q: 1.0 },
+};
+
+// A number as 4 bytes, the way the earbuds store it (32-bit float, little-endian)
+const floatBytes = (f) => {
+    const b = new Uint8Array(4);
+    new DataView(b.buffer).setFloat32(0, f, true);
+    return [...b];
+};
+
+// Custom EQ payload: [band count][overall gain], then per band
+// [filter type][gain][frequency][Q], then 3 empty bytes per band.
+// The bands go mid, treble, bass, like in the official app.
+export function buildCustomEQPayload({ bass, mid, treble }) {
+    const bands = [
+        { ...CUSTOM_EQ_FILTERS.mid, gain: mid },
+        { ...CUSTOM_EQ_FILTERS.treble, gain: treble },
+        { ...CUSTOM_EQ_FILTERS.bass, gain: bass },
+    ];
+    // Turn the overall volume down by the biggest boost, so loud songs don't distort
+    const overall = -Math.max(0, ...bands.map(b => b.gain));
+    const bytes = [bands.length, ...floatBytes(overall)];
+    for (const b of bands) {
+        bytes.push(b.type, ...floatBytes(b.gain), ...floatBytes(b.freq), ...floatBytes(b.q));
+    }
+    for (let i = 0; i < bands.length; i++) bytes.push(0x00, 0x00, 0x00);
+    return bytes;
+}
+
+// Keeps a custom EQ value inside -6 to +6 dB, in whole steps
+export const clampEQ = (v) => Math.max(-6, Math.min(6, Math.round(Number(v)) || 0));
+
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // No answer from the earbuds for this long means the link is gone, even when
@@ -132,7 +183,9 @@ export class ConnectionManager {
         const steps = [
             () => this.sendCommand(CMD_BATTERY_REQ),
             () => this.getFirmware(),
-            () => this.getGestures()
+            () => this.getGestures(),
+            () => this.getEQ(),
+            () => this.getCustomEQ()
         ];
         steps.forEach((step, i) => setTimeout(() => {
             try { Promise.resolve(step()).catch(e => this.log("Sync step failed: " + e.message)); }
@@ -263,25 +316,6 @@ export class ConnectionManager {
         return cmdLo | (cmdHi << 8);
     }
 
-    handlePacket(data) {
-        const cmd = this.getCommand(data);
-
-        // DEBUG LOGGING
-        const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' ');
-        console.log(`RX CMD: ${cmd} (0x${cmd.toString(16).toUpperCase()}) Raw: ${hex}`);
-
-        // Matches bluetooth_socket.js: if (command === 57345 || command===16391)
-        if (cmd === CMD_BATTERY_RES_1 || cmd === CMD_BATTERY_RES_2 || cmd === CMD_BATTERY_REQ) {
-            this.parseBattery(data);
-        }
-
-        // FIRMWARE RESPONSE (0xD001 or 0xC001 typically, let's assume 0xD001 response to 0xC001 request)
-        // Actually, let's log everything for now to find it.
-        if (cmd === 53249) { // 0xD001 (Response to C001?)
-            this.parseFirmware(data);
-        }
-    }
-
     parseFirmware(data) {
         // Typically ASCII or BCD. Let's try ASCII.
         // Skip header (8 bytes)
@@ -319,70 +353,6 @@ export class ConnectionManager {
         } catch (e) { console.error("Batt Parse Error:", e); }
     }
 
-    handlePacket(data) {
-        const cmd = this.getCommand(data);
-        const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' ');
-
-        // BATTERY
-        if (cmd === CMD_BATTERY_RES_1 || cmd === CMD_BATTERY_RES_2 || cmd === CMD_BATTERY_REQ) {
-            this.parseBattery(data);
-        }
-        // FIRMWARE (0x4042 or 0xD001)
-        else if (cmd === 0x4042 || cmd === 0xD001 || cmd === 0x4001) {
-            // 0xD001/4001 usually has [SN_Len, SN..., FW_Len, FW...] or similar
-            // 0x4042 is just FW string.
-            // Let's safe-parse.
-            try {
-                // If 0x4042, it's direct string at data[8]
-                if (cmd === 0x4042) {
-                    const ver = Array.from(data.slice(8, 8 + data[5])).map(c => String.fromCharCode(c)).join('');
-                    if (this.onFirmware) this.onFirmware(ver);
-                }
-                // If 0xD001/0x4001: complex payload. 
-                // Often: Byte 8=SN Len, Then SN, Then FW Len, Then FW.
-                else {
-                    // Quick & Dirty: Look for a string pattern like "1.0." inside the payload
-                    const rawStr = Array.from(data.slice(8)).map(c => String.fromCharCode(c)).join('');
-                    const match = rawStr.match(/(\d+\.\d+\.\d+\.\d+)/);
-                    if (match && this.onFirmware) this.onFirmware(match[0]);
-                }
-            } catch (e) { console.error("FW Parse:", e); }
-        }
-        // ANC RESPONSE (0x401E or 0xE003)
-        else if (cmd === 0x401E || cmd === 0xE003) {
-            // Byte 9 is ANC Status
-            const status = data[9];
-            // Map back to UI values (Reverse of setANC)
-            // 5=Off, 2=High, 3=Mid, 4=Low, 1=Adapt, 7=Trans
-            let uiMode = 5;
-            if (status === 2) uiMode = 1; // High
-            if (status === 3) uiMode = 2; // Mid
-            if (status === 4) uiMode = 3; // Low
-            if (status === 1) uiMode = 4; // Adapt
-            if (status === 7) uiMode = 7; // Trans
-            if (status === 5) uiMode = 5; // Off
-            if (this.onANCUpdate) this.onANCUpdate(uiMode);
-        }
-        // EQ RESPONSE (0x401F)
-        else if (cmd === 0x401F) {
-            const eq = data[8];
-            if (this.onEQUpdate) this.onEQUpdate(eq);
-        }
-        // BASS RESPONSE (0x404E)
-        else if (cmd === 0x404E) {
-            const enabled = data[8];
-            const level = data[9]; // usually raw level (not doubled?) Ref says level/2
-            if (this.onBassUpdate) this.onBassUpdate(enabled, level / 2);
-        }
-        // GESTURE (0x4018)
-        else if (cmd === 0x4018) {
-            this.parseGesturePacket(data);
-        }
-        else {
-            // console.log(`RX CMD: ${cmd} (0x${cmd.toString(16).toUpperCase()}) Raw: ${hex}`);
-        }
-    }
-
     // Gesture: side (left = 2, right = 3), gesture type and action code (see gestures.js)
     setGesture(side, gestureType, actionId) {
         const sideByte = side === 'left' ? 2 : 3;
@@ -403,8 +373,7 @@ export class ConnectionManager {
         this.sendCommand(0xC018, []);
     }
 
-    // ...
-
+    // Every packet from the earbuds ends up here
     handlePacket(data) {
         const cmd = this.getCommand(data);
         const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' ');
@@ -422,6 +391,20 @@ export class ConnectionManager {
         // GESTURE RESPONSE (0x4018)
         else if (cmd === 0x4018) {
             this.parseGesturePacket(data);
+        }
+        // EQ PRESET the earbuds are using (answer to CMD_EQ_GET)
+        else if (cmd === CMD_EQ_RES) {
+            const wire = data[8];
+            if (wire === EQ_CUSTOM_WIRE) {
+                if (this.onEQUpdate) this.onEQUpdate('custom');
+            } else if (WIRE_TO_EQ[wire] && this.onEQUpdate) {
+                this.onEQUpdate(WIRE_TO_EQ[wire]);
+            }
+        }
+        // CUSTOM EQ VALUES (answer to CMD_CUSTOM_EQ_GET)
+        else if (cmd === CMD_CUSTOM_EQ_RES) {
+            const values = this.parseCustomEQ(data);
+            if (values && this.onCustomEQUpdate) this.onCustomEQUpdate(values);
         }
         // EAR TIP FIT TEST RESULT (0xE00D): payload byte 0 = left, byte 1 = right
         else if (cmd === CMD_FIT_TEST_RESULT) {
@@ -495,10 +478,39 @@ export class ConnectionManager {
         this.sendCommand(0xF00F, [0x01, protoMode, 0x00]);
     }
 
+    // EQ preset: 1 = Balanced, 2 = More Bass, 3 = More Treble, 4 = Voice
+    // (sent as the earbuds' own numbers, see EQ_TO_WIRE)
     setEQ(preset) {
-        // 1=Balanced, 2=More Bass, 3=More Treble, 4=Voice
-        this.log(`Set EQ: ${preset}`);
-        this.sendCommand(0xF010, [preset, 0x00]);
+        const wire = EQ_TO_WIRE[preset];
+        if (wire === undefined) return Promise.resolve();
+        this.log(`Set EQ: ${preset} (0x${wire.toString(16)})`);
+        return this.sendCommand(CMD_EQ_SET, [wire, 0x00]);
+    }
+
+    // Custom EQ: { bass, mid, treble } in dB. Sends the three filters, then
+    // switches the earbuds to their custom preset.
+    setCustomEQ({ bass, mid, treble }) {
+        const gains = { bass: clampEQ(bass), mid: clampEQ(mid), treble: clampEQ(treble) };
+        this.log(`Set custom EQ: bass ${gains.bass}, mid ${gains.mid}, treble ${gains.treble} dB`);
+        this.sendCommand(CMD_CUSTOM_EQ_SET, buildCustomEQPayload(gains));
+        return this.sendCommand(CMD_EQ_SET, [EQ_CUSTOM_WIRE, 0x00]);
+    }
+
+    getEQ() {
+        return this.sendCommand(CMD_EQ_GET, []);
+    }
+
+    getCustomEQ() {
+        return this.sendCommand(CMD_CUSTOM_EQ_GET, []);
+    }
+
+    // The answer has the same layout as buildCustomEQPayload, starting at byte 8:
+    // the gains are at bytes 14 (mid), 27 (treble) and 40 (bass).
+    parseCustomEQ(data) {
+        if (data.length < 8 + 5 + 13 * 3) return null;
+        const view = new DataView(Uint8Array.from(data).buffer);
+        const gain = (band) => clampEQ(view.getFloat32(14 + band * 13, true));
+        return { mid: gain(0), treble: gain(1), bass: gain(2) };
     }
 
     setBass(enabled, level) {
